@@ -1,8 +1,8 @@
-const authService = require('../services/auth.service');
-const sendResponse = require('../utils/apiResponse');
-const asyncHandler = require('../utils/asyncHandler');
-const env = require('../config/env');
-const { HTTP_STATUS } = require('../config/constants');
+const authService = require('./auth.service');
+const sendResponse = require('../../utils/apiResponse');
+const asyncHandler = require('../../utils/asyncHandler');
+const env = require('../../config/env');
+const { HTTP_STATUS } = require('../../config/constants');
 
 const setAuthCookie = (res, token) => {
   res.cookie(env.cookieName, token, authService.getCookieOptions());

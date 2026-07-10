@@ -1,7 +1,7 @@
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const connectDatabase = require('../config/database');
-const User = require('../models/User');
+const User = require('../features/auth/user.model');
 const { ROLES } = require('../config/constants');
 
 const seedAdmin = async () => {

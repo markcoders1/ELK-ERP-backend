@@ -7,6 +7,33 @@ const ROLES = {
 
 const ALL_ROLES = Object.values(ROLES);
 
+const HARDWARE_WRITE_ROLES = [
+  ROLES.ADMINISTRATOR,
+  ROLES.MANAGER,
+  ROLES.DATA_ENTRY,
+];
+
+const PRICING_BASIS = {
+  AGREED: 'Agreed',
+  RETAIL: 'Retail',
+};
+
+const ALL_PRICING_BASIS = Object.values(PRICING_BASIS);
+
+const HARDWARE_SORT_FIELDS = [
+  'stockCode',
+  'groupCode',
+  'description',
+  'createdAt',
+  'updatedAt',
+];
+
+const PAGINATION = {
+  DEFAULT_PAGE: 1,
+  DEFAULT_LIMIT: 20,
+  MAX_LIMIT: 100,
+};
+
 const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
@@ -21,5 +48,10 @@ const HTTP_STATUS = {
 module.exports = {
   ROLES,
   ALL_ROLES,
+  HARDWARE_WRITE_ROLES,
+  PRICING_BASIS,
+  ALL_PRICING_BASIS,
+  HARDWARE_SORT_FIELDS,
+  PAGINATION,
   HTTP_STATUS,
 };

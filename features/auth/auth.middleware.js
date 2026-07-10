@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const AppError = require('../utils/AppError');
-const asyncHandler = require('../utils/asyncHandler');
-const env = require('../config/env');
-const { HTTP_STATUS } = require('../config/constants');
+const User = require('./user.model');
+const AppError = require('../../utils/AppError');
+const asyncHandler = require('../../utils/asyncHandler');
+const env = require('../../config/env');
+const { HTTP_STATUS } = require('../../config/constants');
 
 const authenticate = asyncHandler(async (req, res, next) => {
   const token = req.cookies?.[env.cookieName];

@@ -1,5 +1,5 @@
 const { body } = require('express-validator');
-const { ALL_ROLES } = require('../config/constants');
+const { ALL_ROLES } = require('../../config/constants');
 
 const loginRules = [
   body('email').trim().isEmail().withMessage('A valid email is required'),

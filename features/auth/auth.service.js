@@ -1,9 +1,9 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const AppError = require('../utils/AppError');
-const env = require('../config/env');
-const { ROLES, HTTP_STATUS } = require('../config/constants');
+const User = require('./user.model');
+const AppError = require('../../utils/AppError');
+const env = require('../../config/env');
+const { ROLES, HTTP_STATUS } = require('../../config/constants');
 
 const SALT_ROUNDS = 12;
 
