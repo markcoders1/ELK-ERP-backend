@@ -3,17 +3,42 @@ const AppError = require('../../utils/AppError');
 const { HTTP_STATUS, HARDWARE_SORT_FIELDS } = require('../../config/constants');
 const { parsePagination, buildPaginationMeta } = require('../../shared/pagination');
 const { escapeRegex } = require('../../shared/escapeRegex');
+const {
+  calculateHardwarePricing,
+  DEFAULT_MARKUP,
+} = require('./hardwarePricing.service');
 
 const normalizeStockCode = (stockCode) => stockCode.trim().toUpperCase();
 const normalizeGroupCode = (groupCode) => groupCode.trim().toUpperCase();
 
 const notDeletedFilter = { deletedAt: null };
 
-const pickRegionalCosts = (regionalCosts) => ({
-  cpt: regionalCosts.cpt,
-  jhb: regionalCosts.jhb,
-  agreed: regionalCosts.agreed,
-});
+const toOptionalNumber = (value) => {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const number = Number(value);
+  return Number.isNaN(number) ? undefined : number;
+};
+
+/**
+ * Builds persisted regional costs.
+ * Agreed is always derived from the pricing calculator (not trusted from client).
+ */
+const buildRegionalCosts = ({ cpt, jhb, pricingBasis, mnfMarkup, frcMarkup, retailMarkup }) => {
+  const pricing = calculateHardwarePricing({
+    cpt,
+    jhb,
+    pricingBasis,
+    mnfMarkup,
+    frcMarkup,
+    retailMarkup,
+  });
+
+  return {
+    cpt: cpt ?? null,
+    jhb: jhb ?? null,
+    agreed: pricing.agreed ?? null,
+  };
+};
 
 const findActiveById = (id) => HardwareItem.findOne({ _id: id, ...notDeletedFilter });
 
@@ -93,6 +118,13 @@ const create = async (payload, userId) => {
     throw new AppError('Stock code already exists', HTTP_STATUS.CONFLICT);
   }
 
+  const mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
+  const frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
+  const retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  const weight = toOptionalNumber(payload.weight) ?? 0;
+  const cpt = toOptionalNumber(payload.regionalCosts?.cpt);
+  const jhb = toOptionalNumber(payload.regionalCosts?.jhb);
+
   try {
     const item = await HardwareItem.create({
       groupCode: normalizeGroupCode(payload.groupCode),
@@ -100,8 +132,19 @@ const create = async (payload, userId) => {
       description: payload.description.trim(),
       supplierName: payload.supplierName?.trim() || '',
       supplierCode: payload.supplierCode?.trim() || '',
-      regionalCosts: pickRegionalCosts(payload.regionalCosts),
+      regionalCosts: buildRegionalCosts({
+        cpt,
+        jhb,
+        pricingBasis: payload.pricingBasis,
+        mnfMarkup,
+        frcMarkup,
+        retailMarkup,
+      }),
       pricingBasis: payload.pricingBasis,
+      mnfMarkup,
+      frcMarkup,
+      retailMarkup,
+      weight,
       isImport: payload.isImport ?? false,
       isActive: payload.isActive ?? true,
       createdBy: userId,
@@ -140,15 +183,24 @@ const update = async (id, payload, userId) => {
     item.supplierCode = payload.supplierCode.trim();
   }
 
-  if (payload.regionalCosts !== undefined) {
-    item.regionalCosts = pickRegionalCosts({
-      ...item.regionalCosts.toObject(),
-      ...payload.regionalCosts,
-    });
-  }
-
   if (payload.pricingBasis !== undefined) {
     item.pricingBasis = payload.pricingBasis;
+  }
+
+  if (payload.mnfMarkup !== undefined) {
+    item.mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
+  }
+
+  if (payload.frcMarkup !== undefined) {
+    item.frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
+  }
+
+  if (payload.retailMarkup !== undefined) {
+    item.retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  }
+
+  if (payload.weight !== undefined) {
+    item.weight = toOptionalNumber(payload.weight) ?? 0;
   }
 
   if (payload.isImport !== undefined) {
@@ -157,6 +209,36 @@ const update = async (id, payload, userId) => {
 
   if (payload.isActive !== undefined) {
     item.isActive = payload.isActive;
+  }
+
+  const existingRegional = item.regionalCosts?.toObject
+    ? item.regionalCosts.toObject()
+    : item.regionalCosts || {};
+
+  if (
+    payload.regionalCosts !== undefined ||
+    payload.pricingBasis !== undefined ||
+    payload.mnfMarkup !== undefined ||
+    payload.frcMarkup !== undefined ||
+    payload.retailMarkup !== undefined
+  ) {
+    const nextCpt =
+      payload.regionalCosts && Object.prototype.hasOwnProperty.call(payload.regionalCosts, 'cpt')
+        ? toOptionalNumber(payload.regionalCosts.cpt)
+        : existingRegional.cpt;
+    const nextJhb =
+      payload.regionalCosts && Object.prototype.hasOwnProperty.call(payload.regionalCosts, 'jhb')
+        ? toOptionalNumber(payload.regionalCosts.jhb)
+        : existingRegional.jhb;
+
+    item.regionalCosts = buildRegionalCosts({
+      cpt: nextCpt,
+      jhb: nextJhb,
+      pricingBasis: item.pricingBasis,
+      mnfMarkup: item.mnfMarkup,
+      frcMarkup: item.frcMarkup,
+      retailMarkup: item.retailMarkup,
+    });
   }
 
   item.updatedBy = userId;

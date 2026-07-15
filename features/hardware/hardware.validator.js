@@ -1,10 +1,13 @@
 const { body, param, query } = require('express-validator');
 const { ALL_PRICING_BASIS, HARDWARE_SORT_FIELDS } = require('../../config/constants');
 
+const positiveMarkupRule = (field, label) =>
+  body(field)
+    .optional({ values: 'null' })
+    .isFloat({ gt: 0 })
+    .withMessage(`${label} must be a positive decimal value`);
+
 const regionalCostsRules = [
-  body('regionalCosts.agreed')
-    .isFloat({ min: 0 })
-    .withMessage('Agreed cost must be a number greater than or equal to 0'),
   body('regionalCosts.cpt')
     .optional({ values: 'null' })
     .isFloat({ min: 0 })
@@ -13,6 +16,21 @@ const regionalCostsRules = [
     .optional({ values: 'null' })
     .isFloat({ min: 0 })
     .withMessage('JHB cost must be a number greater than or equal to 0'),
+  // Agreed is calculated; accept optionally for backward-compatible payloads.
+  body('regionalCosts.agreed')
+    .optional({ values: 'null' })
+    .isFloat({ min: 0 })
+    .withMessage('Agreed cost must be a number greater than or equal to 0'),
+];
+
+const markupAndWeightRules = [
+  positiveMarkupRule('mnfMarkup', 'MNF markup'),
+  positiveMarkupRule('frcMarkup', 'FRC markup'),
+  positiveMarkupRule('retailMarkup', 'Retail markup'),
+  body('weight')
+    .optional({ values: 'null' })
+    .isFloat({ min: 0 })
+    .withMessage('Weight must be a number greater than or equal to 0'),
 ];
 
 const createRules = [
@@ -28,6 +46,7 @@ const createRules = [
   body('isImport').optional().isBoolean().withMessage('isImport must be a boolean'),
   body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
   ...regionalCostsRules,
+  ...markupAndWeightRules,
 ];
 
 const forbiddenOnUpdateRules = [
@@ -52,10 +71,6 @@ const updateRules = [
     .withMessage(`Pricing basis must be one of: ${ALL_PRICING_BASIS.join(', ')}`),
   body('isImport').optional().isBoolean().withMessage('isImport must be a boolean'),
   body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
-  body('regionalCosts.agreed')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Agreed cost must be a number greater than or equal to 0'),
   body('regionalCosts.cpt')
     .optional({ values: 'null' })
     .isFloat({ min: 0 })
@@ -64,6 +79,11 @@ const updateRules = [
     .optional({ values: 'null' })
     .isFloat({ min: 0 })
     .withMessage('JHB cost must be a number greater than or equal to 0'),
+  body('regionalCosts.agreed')
+    .optional({ values: 'null' })
+    .isFloat({ min: 0 })
+    .withMessage('Agreed cost must be a number greater than or equal to 0'),
+  ...markupAndWeightRules,
 ];
 
 const idParamRules = [param('id').isMongoId().withMessage('Invalid hardware item id')];

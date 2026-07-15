@@ -28,6 +28,18 @@ const HARDWARE_SORT_FIELDS = [
   'updatedAt',
 ];
 
+const BOARDS_SORT_FIELDS = [
+  'boardCode',
+  'description',
+  'supplier',
+  'range',
+  'colour',
+  'finish',
+  'boardType',
+  'createdAt',
+  'updatedAt',
+];
+
 const PAGINATION = {
   DEFAULT_PAGE: 1,
   DEFAULT_LIMIT: 20,
@@ -52,6 +64,7 @@ module.exports = {
   PRICING_BASIS,
   ALL_PRICING_BASIS,
   HARDWARE_SORT_FIELDS,
+  BOARDS_SORT_FIELDS,
   PAGINATION,
   HTTP_STATUS,
 };

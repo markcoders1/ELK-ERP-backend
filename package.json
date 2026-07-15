@@ -7,6 +7,8 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "seed:admin": "node scripts/seedAdmin.js",
+    "seed:users": "node scripts/seedUsers.js",
+    "seed:hardware": "node scripts/seedHardware.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
