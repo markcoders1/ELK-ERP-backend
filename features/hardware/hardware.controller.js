@@ -1,4 +1,5 @@
 const hardwareService = require('./hardware.service');
+const hardwareApprovalsController = require('../hardware-approvals/hardwareApprovals.controller');
 const sendResponse = require('../../utils/apiResponse');
 const asyncHandler = require('../../utils/asyncHandler');
 const { HTTP_STATUS } = require('../../config/constants');
@@ -23,25 +24,15 @@ const getById = asyncHandler(async (req, res) => {
   });
 });
 
-const create = asyncHandler(async (req, res) => {
-  const item = await hardwareService.create(req.body, req.user.id);
-
-  return sendResponse(res, {
-    message: 'Hardware item created successfully',
-    data: { item },
-    statusCode: HTTP_STATUS.CREATED,
-  });
-});
-
-const update = asyncHandler(async (req, res) => {
-  const item = await hardwareService.update(req.params.id, req.body, req.user.id);
-
-  return sendResponse(res, {
-    message: 'Hardware item updated successfully',
-    data: { item },
-    statusCode: HTTP_STATUS.OK,
-  });
-});
+/**
+ * Create / update no longer write the catalogue directly.
+ * They submit pending change requests (approval workflow).
+ * Catalogue mutations happen only on approve via hardware.service.
+ */
+const create = hardwareApprovalsController.submitCreate;
+const update = hardwareApprovalsController.submitUpdate;
+const submitCreate = hardwareApprovalsController.submitCreate;
+const submitUpdate = hardwareApprovalsController.submitUpdate;
 
 const remove = asyncHandler(async (req, res) => {
   const item = await hardwareService.softDelete(req.params.id, req.user.id);
@@ -58,5 +49,7 @@ module.exports = {
   getById,
   create,
   update,
+  submitCreate,
+  submitUpdate,
   remove,
 };

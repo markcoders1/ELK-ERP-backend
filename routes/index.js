@@ -1,7 +1,9 @@
 const express = require('express');
 const authRoutes = require('../features/auth/auth.routes');
 const hardwareRoutes = require('../features/hardware/hardware.routes');
+const hardwareApprovalsRoutes = require('../features/hardware-approvals/hardwareApprovals.routes');
 const boardsRoutes = require('../features/boards/boards.routes');
+const usersRoutes = require('../features/users/users.routes');
 
 const router = express.Router();
 
@@ -16,6 +18,8 @@ router.get('/health', (req, res) => {
 
 router.use('/auth', authRoutes);
 router.use('/hardware-items', hardwareRoutes);
+router.use('/hardware-approvals', hardwareApprovalsRoutes);
 router.use('/boards', boardsRoutes);
+router.use('/users', usersRoutes);
 
 module.exports = router;

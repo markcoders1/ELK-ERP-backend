@@ -10,24 +10,32 @@ const SEED_USERS = [
   {
     email: process.env.SEED_ADMIN_EMAIL || 'admin@elk-erp.com',
     password: process.env.SEED_ADMIN_PASSWORD || 'Admin@12345',
+    firstName: 'System',
+    lastName: 'Administrator',
     name: process.env.SEED_ADMIN_NAME || 'System Administrator',
     role: ROLES.ADMINISTRATOR,
   },
   {
     email: process.env.SEED_MANAGER_EMAIL || 'manager@elk-erp.com',
     password: process.env.SEED_MANAGER_PASSWORD || 'Manager@12345',
+    firstName: 'Demo',
+    lastName: 'Manager',
     name: process.env.SEED_MANAGER_NAME || 'Demo Manager',
     role: ROLES.MANAGER,
   },
   {
     email: process.env.SEED_DATA_ENTRY_EMAIL || 'dataentry@elk-erp.com',
     password: process.env.SEED_DATA_ENTRY_PASSWORD || 'DataEntry@12345',
+    firstName: 'Demo',
+    lastName: 'Data Entry',
     name: process.env.SEED_DATA_ENTRY_NAME || 'Demo Data Entry',
     role: ROLES.DATA_ENTRY,
   },
   {
     email: process.env.SEED_CONSULTANT_EMAIL || 'consultant@elk-erp.com',
     password: process.env.SEED_CONSULTANT_PASSWORD || 'Consultant@12345',
+    firstName: 'Demo',
+    lastName: 'Consultant',
     name: process.env.SEED_CONSULTANT_NAME || 'Demo Consultant',
     role: ROLES.CONSULTANT,
   },
@@ -51,6 +59,8 @@ const seedUsers = async () => {
     const hashedPassword = await bcrypt.hash(userData.password, SALT_ROUNDS);
 
     await User.create({
+      firstName: userData.firstName,
+      lastName: userData.lastName,
       name: userData.name,
       email: userData.email,
       password: hashedPassword,

@@ -29,6 +29,9 @@ const login = async ({ email, password }) => {
     throw new AppError('Invalid email or password', HTTP_STATUS.UNAUTHORIZED);
   }
 
+  user.lastLogin = new Date();
+  await user.save();
+
   const token = signToken(user._id);
 
   return {
@@ -68,15 +71,7 @@ const getProfile = async (userId) => {
     throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
   }
 
-  return {
-    id: user._id.toString(),
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    isActive: user.isActive,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  };
+  return User.toSafeObjectFromLean(user);
 };
 
 module.exports = {
