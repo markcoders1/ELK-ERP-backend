@@ -88,6 +88,22 @@ const hardwareItemSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    /** Human-readable import batch code, e.g. IMP-20260718-001 */
+    importBatchId: {
+      type: String,
+      default: null,
+      trim: true,
+      index: true,
+    },
+    importedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    importedAt: {
+      type: Date,
+      default: null,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -131,6 +147,9 @@ const buildSourceObject = (item) => ({
   retailMarkup: item.retailMarkup ?? DEFAULT_MARKUP,
   weight: item.weight ?? 0,
   isImport: item.isImport,
+  importBatchId: item.importBatchId || null,
+  importedBy: item.importedBy || null,
+  importedAt: item.importedAt || null,
   isActive: item.isActive,
   createdAt: item.createdAt,
   updatedAt: item.updatedAt,

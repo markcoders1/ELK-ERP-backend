@@ -261,10 +261,77 @@ const softDelete = async (id, userId) => {
   return item.toSafeObject();
 };
 
+/**
+ * Build a HardwareItem document for direct Excel import (live catalogue).
+ * Same field rules as create(); adds import provenance metadata.
+ */
+const buildImportDocument = (payload, { userId, importBatchId, importedAt }) => {
+  const stockCode = normalizeStockCode(payload.stockCode);
+  const mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
+  const frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
+  const retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  const weight = toOptionalNumber(payload.weight) ?? 0;
+  const cpt = toOptionalNumber(payload.regionalCosts?.cpt);
+  const jhb = toOptionalNumber(payload.regionalCosts?.jhb);
+
+  return {
+    groupCode: normalizeGroupCode(payload.groupCode),
+    stockCode,
+    description: payload.description.trim(),
+    supplierName: payload.supplierName?.trim() || '',
+    supplierCode: payload.supplierCode?.trim() || '',
+    regionalCosts: buildRegionalCosts({
+      cpt,
+      jhb,
+      pricingBasis: payload.pricingBasis,
+      mnfMarkup,
+      frcMarkup,
+      retailMarkup,
+    }),
+    pricingBasis: payload.pricingBasis,
+    mnfMarkup,
+    frcMarkup,
+    retailMarkup,
+    weight,
+    isImport: payload.isImport ?? true,
+    isActive: payload.isActive ?? true,
+    importBatchId,
+    importedBy: userId,
+    importedAt,
+    createdBy: userId,
+    updatedBy: userId,
+  };
+};
+
+/**
+ * Bulk-insert live hardware rows from Excel import.
+ * Uses ordered:false so one duplicate does not abort the chunk.
+ */
+const createManyFromImport = async (payloads, { userId, importBatchId, importedAt }) => {
+  if (!payloads.length) return [];
+
+  const docs = payloads.map((payload) =>
+    buildImportDocument(payload, { userId, importBatchId, importedAt })
+  );
+
+  try {
+    return await HardwareItem.insertMany(docs, { ordered: false });
+  } catch (error) {
+    // Partial success is expected when a race introduces a duplicate mid-import.
+    if (error.writeErrors || error.code === 11000) {
+      const inserted = error.insertedDocs || [];
+      return inserted;
+    }
+    throw error;
+  }
+};
+
 module.exports = {
   findAll,
   findById,
   create,
   update,
   softDelete,
+  buildImportDocument,
+  createManyFromImport,
 };

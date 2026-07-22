@@ -68,6 +68,6 @@ Idempotent insert-missing by `stockCode`. Optional markups/weight in seed JSON; 
 ## Known Limitations
 
 - Pricing formulas are temporary placeholders awaiting client confirmation
-- No Excel import/export
+- Excel import available via `/api/hardware-import` (pending approvals only — never direct live write)
 - No restore endpoint for soft-deleted items
 - `RET from Supplier` not stored yet
