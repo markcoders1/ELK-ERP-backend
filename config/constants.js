@@ -24,11 +24,77 @@ const APPROVAL_REVIEW_ROLES = [
 
 const ENTITY_TYPES = {
   HARDWARE: 'HARDWARE',
+  COMPONENT: 'COMPONENT',
   USER: 'USER',
   IMPORT_BATCH: 'IMPORT_BATCH',
 };
 
 const ALL_ENTITY_TYPES = Object.values(ENTITY_TYPES);
+
+/**
+ * Catalogue version status for Components (hybrid versioning — AD-023).
+ * Pending changes live in change requests; live docs are APPROVED;
+ * prior approved copies become SUPERSEDED on update approve.
+ */
+const COMPONENT_VERSION_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  SUPERSEDED: 'SUPERSEDED',
+};
+
+const ALL_COMPONENT_VERSION_STATUSES = Object.values(COMPONENT_VERSION_STATUS);
+
+/**
+ * Open section-type registry seeds. New manufacturing section types are
+ * addable without schema changes — register a calculator + UI adapter only.
+ */
+const SECTION_TYPES = {
+  BOARD: 'BOARD',
+  HARDWARE: 'HARDWARE',
+  FACTORY: 'FACTORY',
+  VARIANT: 'VARIANT',
+};
+
+const ALL_SECTION_TYPES = Object.values(SECTION_TYPES);
+
+/** Section types that roll into manufacturing total cost. */
+const COST_BEARING_SECTION_TYPES = [
+  SECTION_TYPES.BOARD,
+  SECTION_TYPES.HARDWARE,
+  SECTION_TYPES.FACTORY,
+];
+
+const COMPONENT_WRITE_ROLES = [
+  ROLES.ADMINISTRATOR,
+  ROLES.MANAGER,
+  ROLES.DATA_ENTRY,
+];
+
+const COMPONENT_SORT_FIELDS = [
+  'componentCode',
+  'description',
+  'category',
+  'finish',
+  'status',
+  'retailPrice',
+  'createdAt',
+  'updatedAt',
+];
+
+/** Audit actions for Component / BOM lifecycle. */
+const COMPONENT_AUDIT_ACTIONS = {
+  COMPONENT_CREATED: 'COMPONENT_CREATED',
+  COMPONENT_UPDATED: 'COMPONENT_UPDATED',
+  COMPONENT_SUBMITTED: 'COMPONENT_SUBMITTED',
+  COMPONENT_IMPORTED: 'COMPONENT_IMPORTED',
+  SECTION_CHANGED: 'SECTION_CHANGED',
+  HARDWARE_LINK_CHANGED: 'HARDWARE_LINK_CHANGED',
+  BOARD_CHANGED: 'BOARD_CHANGED',
+  FACTORY_CHANGED: 'FACTORY_CHANGED',
+  VARIANT_CHANGED: 'VARIANT_CHANGED',
+};
+
+const ALL_COMPONENT_AUDIT_ACTIONS = Object.values(COMPONENT_AUDIT_ACTIONS);
 
 /** Audit actions for User Management (immutable audit trail). */
 const USER_AUDIT_ACTIONS = {
@@ -49,6 +115,7 @@ const IMPORT_AUDIT_ACTIONS = {
   IMPORT_CANCELLED: 'IMPORT_CANCELLED',
   IMPORT_BATCH_CREATED: 'IMPORT_BATCH_CREATED',
   HARDWARE_IMPORTED: 'HARDWARE_IMPORTED',
+  COMPONENT_IMPORTED: 'COMPONENT_IMPORTED',
 };
 
 const ALL_IMPORT_AUDIT_ACTIONS = Object.values(IMPORT_AUDIT_ACTIONS);
@@ -83,6 +150,7 @@ const ALL_IMPORT_ROW_STATUSES = Object.values(IMPORT_ROW_STATUS);
 
 const IMPORT_MODULES = {
   HARDWARE: 'HARDWARE',
+  COMPONENT: 'COMPONENT',
 };
 
 const ALL_IMPORT_MODULES = Object.values(IMPORT_MODULES);
@@ -104,6 +172,9 @@ const ALL_IMPORT_APPLY_MODES = Object.values(IMPORT_APPLY_MODE);
 
 /** Current Hardware Excel import apply mode (migration — bypass approval). */
 const HARDWARE_IMPORT_APPLY_MODE = IMPORT_APPLY_MODE.DIRECT;
+
+/** Current Component Excel import apply mode (migration — bypass approval). */
+const COMPONENT_IMPORT_APPLY_MODE = IMPORT_APPLY_MODE.DIRECT;
 
 /** Chunk size for parse / normalize / validate / queue processing. */
 const IMPORT_CHUNK_SIZE = 500;
@@ -162,6 +233,7 @@ const AUDIT_SORT_FIELDS = [
   'createdAt',
   'decision',
   'stockCode',
+  'componentCode',
   'action',
 ];
 
@@ -221,10 +293,19 @@ module.exports = {
   ROLES,
   ALL_ROLES,
   HARDWARE_WRITE_ROLES,
+  COMPONENT_WRITE_ROLES,
   APPROVAL_SUBMIT_ROLES,
   APPROVAL_REVIEW_ROLES,
   ENTITY_TYPES,
   ALL_ENTITY_TYPES,
+  COMPONENT_VERSION_STATUS,
+  ALL_COMPONENT_VERSION_STATUSES,
+  SECTION_TYPES,
+  ALL_SECTION_TYPES,
+  COST_BEARING_SECTION_TYPES,
+  COMPONENT_SORT_FIELDS,
+  COMPONENT_AUDIT_ACTIONS,
+  ALL_COMPONENT_AUDIT_ACTIONS,
   USER_AUDIT_ACTIONS,
   ALL_USER_AUDIT_ACTIONS,
   IMPORT_AUDIT_ACTIONS,
@@ -241,6 +322,7 @@ module.exports = {
   IMPORT_APPLY_MODE,
   ALL_IMPORT_APPLY_MODES,
   HARDWARE_IMPORT_APPLY_MODE,
+  COMPONENT_IMPORT_APPLY_MODE,
   IMPORT_CHUNK_SIZE,
   IMPORT_MAX_FILE_BYTES,
   CHANGE_REQUEST_ACTIONS,

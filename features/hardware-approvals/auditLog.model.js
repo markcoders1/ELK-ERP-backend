@@ -5,6 +5,7 @@ const {
   ALL_CHANGE_REQUEST_ACTIONS,
   ALL_USER_AUDIT_ACTIONS,
   ALL_IMPORT_AUDIT_ACTIONS,
+  ALL_COMPONENT_AUDIT_ACTIONS,
   ALL_AUDIT_DECISIONS,
 } = require('../../config/constants');
 
@@ -12,6 +13,7 @@ const ALL_AUDIT_ACTIONS = [
   ...ALL_CHANGE_REQUEST_ACTIONS,
   ...ALL_USER_AUDIT_ACTIONS,
   ...ALL_IMPORT_AUDIT_ACTIONS,
+  ...ALL_COMPONENT_AUDIT_ACTIONS,
 ];
 
 /**
@@ -39,6 +41,19 @@ const auditLogSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'HardwareItem',
       default: null,
+      index: true,
+    },
+    componentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Component',
+      default: null,
+      index: true,
+    },
+    componentCode: {
+      type: String,
+      default: null,
+      trim: true,
+      uppercase: true,
       index: true,
     },
     targetUserId: {
@@ -132,6 +147,8 @@ auditLogSchema.statics.toSafeObjectFromLean = function toSafeObjectFromLean(doc)
     entityType: doc.entityType,
     changeRequestId: doc.changeRequestId,
     hardwareId: doc.hardwareId,
+    componentId: doc.componentId,
+    componentCode: doc.componentCode,
     targetUserId: doc.targetUserId
       ? doc.targetUserId._id?.toString?.() || doc.targetUserId.toString?.() || doc.targetUserId
       : null,

@@ -29,6 +29,12 @@ const changeRequestSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    componentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Component',
+      default: null,
+      index: true,
+    },
     action: {
       type: String,
       enum: ALL_CHANGE_REQUEST_ACTIONS,
@@ -120,6 +126,8 @@ const changeRequestSchema = new mongoose.Schema(
 changeRequestSchema.index({ status: 1, submittedAt: -1 });
 changeRequestSchema.index({ entityType: 1, status: 1, submittedAt: -1 });
 changeRequestSchema.index({ 'snapshotAfter.stockCode': 1, status: 1 });
+changeRequestSchema.index({ 'snapshotAfter.header.componentCode': 1, status: 1 });
+changeRequestSchema.index({ componentId: 1, status: 1 });
 
 const populateUser = (doc) => {
   if (!doc) return null;
@@ -141,6 +149,7 @@ changeRequestSchema.statics.toSafeObjectFromLean = function toSafeObjectFromLean
     id: doc._id,
     entityType: doc.entityType,
     hardwareId: doc.hardwareId,
+    componentId: doc.componentId,
     action: doc.action,
     status: doc.status,
     submittedBy: populateUser(doc.submittedBy),
@@ -157,7 +166,18 @@ changeRequestSchema.statics.toSafeObjectFromLean = function toSafeObjectFromLean
     syncLogs: doc.syncLogs || [],
     comments: doc.comments || '',
     stockCode: doc.snapshotAfter?.stockCode || doc.snapshotBefore?.stockCode || null,
-    description: doc.snapshotAfter?.description || doc.snapshotBefore?.description || null,
+    componentCode:
+      doc.snapshotAfter?.header?.componentCode ||
+      doc.snapshotBefore?.header?.componentCode ||
+      doc.snapshotAfter?.componentCode ||
+      doc.snapshotBefore?.componentCode ||
+      null,
+    description:
+      doc.snapshotAfter?.header?.description ||
+      doc.snapshotAfter?.description ||
+      doc.snapshotBefore?.header?.description ||
+      doc.snapshotBefore?.description ||
+      null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };

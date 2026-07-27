@@ -4,6 +4,7 @@ const ChangeRequest = require('./changeRequest.model');
 const AuditLog = require('./auditLog.model');
 const notificationService = require('./notification.service');
 const syncService = require('./sync.service');
+const componentApprovalsService = require('../component-approvals/componentApprovals.service');
 const AppError = require('../../utils/AppError');
 const {
   HTTP_STATUS,
@@ -287,7 +288,16 @@ const submitUpdate = async (hardwareId, payload, user) => {
 };
 
 const buildListFilter = (query) => {
-  const filter = { entityType: ENTITY_TYPES.HARDWARE };
+  const filter = {};
+
+  if (query.entityType) {
+    filter.entityType = query.entityType;
+  } else {
+    // Show Hardware + Component requests in the shared Approvals queue.
+    filter.entityType = {
+      $in: [ENTITY_TYPES.HARDWARE, ENTITY_TYPES.COMPONENT],
+    };
+  }
 
   if (query.status) {
     filter.status = query.status;
@@ -308,6 +318,10 @@ const buildListFilter = (query) => {
       { 'snapshotAfter.description': new RegExp(term, 'i') },
       { 'snapshotBefore.stockCode': new RegExp(term, 'i') },
       { 'snapshotBefore.description': new RegExp(term, 'i') },
+      { 'snapshotAfter.header.componentCode': new RegExp(term, 'i') },
+      { 'snapshotAfter.header.description': new RegExp(term, 'i') },
+      { 'snapshotBefore.header.componentCode': new RegExp(term, 'i') },
+      { 'snapshotBefore.header.description': new RegExp(term, 'i') },
     ];
   }
 
@@ -341,7 +355,11 @@ const findAll = async (query) => {
 const findById = async (id) => {
   const item = await populateRequestQuery(ChangeRequest.findById(id)).lean();
 
-  if (!item || item.entityType !== ENTITY_TYPES.HARDWARE) {
+  if (
+    !item ||
+    (item.entityType !== ENTITY_TYPES.HARDWARE &&
+      item.entityType !== ENTITY_TYPES.COMPONENT)
+  ) {
     throw new AppError('Change request not found', HTTP_STATUS.NOT_FOUND);
   }
 
@@ -379,7 +397,15 @@ const createAuditEntry = async ({
 const approve = async (id, user) => {
   const request = await ChangeRequest.findById(id);
 
-  if (!request || request.entityType !== ENTITY_TYPES.HARDWARE) {
+  if (!request) {
+    throw new AppError('Change request not found', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (request.entityType === ENTITY_TYPES.COMPONENT) {
+    return componentApprovalsService.approve(id, user);
+  }
+
+  if (request.entityType !== ENTITY_TYPES.HARDWARE) {
     throw new AppError('Change request not found', HTTP_STATUS.NOT_FOUND);
   }
 
@@ -445,7 +471,15 @@ const reject = async (id, { reason }, user) => {
 
   const request = await ChangeRequest.findById(id);
 
-  if (!request || request.entityType !== ENTITY_TYPES.HARDWARE) {
+  if (!request) {
+    throw new AppError('Change request not found', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (request.entityType === ENTITY_TYPES.COMPONENT) {
+    return componentApprovalsService.reject(id, { reason: trimmedReason }, user);
+  }
+
+  if (request.entityType !== ENTITY_TYPES.HARDWARE) {
     throw new AppError('Change request not found', HTTP_STATUS.NOT_FOUND);
   }
 
@@ -479,7 +513,14 @@ const reject = async (id, { reason }, user) => {
 };
 
 const buildAuditFilter = (query) => {
-  const filter = { entityType: ENTITY_TYPES.HARDWARE };
+  const filter = {};
+  if (query.entityType) {
+    filter.entityType = query.entityType;
+  } else {
+    filter.entityType = {
+      $in: [ENTITY_TYPES.HARDWARE, ENTITY_TYPES.COMPONENT],
+    };
+  }
   const andClauses = [];
 
   if (query.decision || query.status) {
@@ -488,6 +529,10 @@ const buildAuditFilter = (query) => {
 
   if (query.stockCode) {
     filter.stockCode = normalizeStockCode(query.stockCode);
+  }
+
+  if (query.componentCode) {
+    filter.componentCode = String(query.componentCode).trim().toUpperCase();
   }
 
   if (query.dateFrom || query.dateTo) {
@@ -513,6 +558,7 @@ const buildAuditFilter = (query) => {
     andClauses.push({
       $or: [
         { stockCode: new RegExp(term, 'i') },
+        { componentCode: new RegExp(term, 'i') },
         { reason: new RegExp(term, 'i') },
       ],
     });
