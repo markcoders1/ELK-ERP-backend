@@ -70,6 +70,8 @@ const buildListFilter = (query) => {
     filter.$or = [
       { stockCode: new RegExp(term, 'i') },
       { description: new RegExp(term, 'i') },
+      { groupCode: new RegExp(term, 'i') },
+      { supplierName: new RegExp(term, 'i') },
     ];
   }
 

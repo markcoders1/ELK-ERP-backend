@@ -87,8 +87,12 @@ const changeRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
+    /**
+     * Hardware: string field paths (e.g. "description").
+     * Component/BOM: structured change objects from shared/bomDiff.js.
+     */
     changedFields: {
-      type: [String],
+      type: [mongoose.Schema.Types.Mixed],
       default: [],
     },
     notificationRead: {

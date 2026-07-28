@@ -85,8 +85,12 @@ const auditLogSchema = new mongoose.Schema(
         message: 'Invalid audit decision',
       },
     },
+    /**
+     * Hardware: string field paths.
+     * Component/BOM: structured change objects from shared/bomDiff.js.
+     */
     changedFields: {
-      type: [String],
+      type: [mongoose.Schema.Types.Mixed],
       default: [],
     },
     submittedBy: {

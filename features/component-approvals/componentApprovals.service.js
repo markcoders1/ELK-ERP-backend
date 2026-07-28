@@ -12,76 +12,14 @@ const {
   CHANGE_REQUEST_STATUS,
   AUDIT_DECISIONS,
   SYNC_STATUS,
-  SECTION_TYPES,
   COMPONENT_AUDIT_ACTIONS,
 } = require('../../config/constants');
+const { toPersistedChangedFields } = require('../../shared/bomDiff');
 
 const USER_SELECT = 'name email role';
 
-const valuesEqual = (a, b) => {
-  if (a === b) return true;
-  if (a == null && b == null) return true;
-  if (typeof a === 'object' || typeof b === 'object') {
-    return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  }
-  return String(a) === String(b);
-};
-
-const HEADER_FIELDS = [
-  'componentCode',
-  'description',
-  'category',
-  'finish',
-  'status',
-  'retailPrice',
-  'isActive',
-  'dimensions.length',
-  'dimensions.width',
-  'dimensions.height',
-  'dimensions.unit',
-];
-
-const getPathValue = (obj, path) => {
-  if (!obj) return undefined;
-  return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
-};
-
-const computeChangedFields = (before, after) => {
-  const fields = [];
-  const beforeHeader = before?.header || before;
-  const afterHeader = after?.header || after;
-
-  for (const field of HEADER_FIELDS) {
-    if (!before) {
-      const value = getPathValue(afterHeader, field);
-      if (value !== undefined && value !== null && value !== '') fields.push(`header.${field}`);
-    } else if (!valuesEqual(getPathValue(beforeHeader, field), getPathValue(afterHeader, field))) {
-      fields.push(`header.${field}`);
-    }
-  }
-
-  if (!valuesEqual(before?.sections, after?.sections)) {
-    fields.push('sections');
-    const beforeTypes = new Set((before?.sections || []).map((s) => s.sectionType));
-    const afterTypes = new Set((after?.sections || []).map((s) => s.sectionType));
-    for (const type of afterTypes) {
-      const beforeSection = (before?.sections || []).find((s) => s.sectionType === type);
-      const afterSection = (after?.sections || []).find((s) => s.sectionType === type);
-      if (!valuesEqual(beforeSection, afterSection)) {
-        fields.push(`sections.${type}`);
-        if (type === SECTION_TYPES.HARDWARE) fields.push(COMPONENT_AUDIT_ACTIONS.HARDWARE_LINK_CHANGED);
-        if (type === SECTION_TYPES.BOARD) fields.push(COMPONENT_AUDIT_ACTIONS.BOARD_CHANGED);
-        if (type === SECTION_TYPES.FACTORY) fields.push(COMPONENT_AUDIT_ACTIONS.FACTORY_CHANGED);
-        if (type === SECTION_TYPES.VARIANT) fields.push(COMPONENT_AUDIT_ACTIONS.VARIANT_CHANGED);
-      }
-    }
-    for (const type of beforeTypes) {
-      if (!afterTypes.has(type)) fields.push(`sections.${type}`);
-    }
-  }
-
-  return [...new Set(fields)];
-};
+/** Business-friendly BOM change list (shared engine). */
+const computeChangedFields = (before, after) => toPersistedChangedFields(before, after);
 
 const assertNoPendingConflict = async ({ componentId = null, componentCode = null }) => {
   const filter = {

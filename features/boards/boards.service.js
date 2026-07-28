@@ -44,6 +44,11 @@ const buildListFilter = (query) => {
     filter.$or = [
       { boardCode: new RegExp(term, 'i') },
       { description: new RegExp(term, 'i') },
+      { colour: new RegExp(term, 'i') },
+      { finish: new RegExp(term, 'i') },
+      { boardType: new RegExp(term, 'i') },
+      { range: new RegExp(term, 'i') },
+      { supplier: new RegExp(term, 'i') },
     ];
   }
 
