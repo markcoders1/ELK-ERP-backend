@@ -212,7 +212,7 @@ const normalizeComponentRow = (rawRow, headerLookup) => {
     },
     {
       sectionType: SECTION_TYPES.VARIANT,
-      name: 'Finish Variants',
+      name: 'Finish Pricing',
       sortOrder: 3,
       meta: {},
       items: variantItems,

@@ -10,13 +10,13 @@
  */
 
 const SECTION_LABELS = {
-  BOARD: 'Boards',
-  HARDWARE: 'Hardware',
-  FACTORY: 'Factory Operations',
-  VARIANT: 'Finish Variants',
+  BOARD: 'Board Components',
+  HARDWARE: 'Hardware Components',
+  FACTORY: 'Factory Components',
+  VARIANT: 'Finish Pricing',
 };
 
-const HEADER_SECTION = 'General Information';
+const HEADER_SECTION = 'Product Information';
 
 const ACTIONS = {
   ADDED: 'ADDED',
@@ -42,7 +42,7 @@ const BOARD_FIELDS = [
   { path: 'attributes.partName', label: 'Part Name' },
   { path: 'attributes.boardType', label: 'Board Type' },
   { path: 'attributes.material', label: 'Material' },
-  { path: 'quantity', label: 'Quantity' },
+  { path: 'quantity', label: 'Qty' },
   { path: 'attributes.length', label: 'Length' },
   { path: 'attributes.width', label: 'Width' },
   { path: 'attributes.thickness', label: 'Thickness' },
@@ -56,7 +56,7 @@ const BOARD_FIELDS = [
 const HARDWARE_FIELDS = [
   { path: 'attributes.stockCode', label: 'Stock Code' },
   { path: 'attributes.description', label: 'Description' },
-  { path: 'quantity', label: 'Quantity' },
+  { path: 'quantity', label: 'Qty' },
   { path: 'unitCost', label: 'Unit Cost', money: true },
   { path: 'notes', label: 'Notes' },
 ];
@@ -65,14 +65,14 @@ const FACTORY_FIELDS = [
   { path: 'attributes.name', label: 'Operation' },
   { path: 'unitCost', label: 'Cost', money: true, fallbackPath: 'attributes.cost' },
   { path: 'attributes.unit', label: 'Duration / Unit' },
-  { path: 'quantity', label: 'Quantity' },
+  { path: 'quantity', label: 'Qty' },
   { path: 'notes', label: 'Notes' },
 ];
 
 const VARIANT_FIELDS = [
-  { path: 'attributes.finishName', label: 'Finish' },
-  { path: 'attributes.retailPrice', label: 'Price Adjustment', money: true },
-  { path: 'attributes.cost', label: 'Cost', money: true },
+  { path: 'attributes.finishName', label: 'Finish / Price Group' },
+  { path: 'attributes.retailPrice', label: 'Retail Price', money: true },
+  { path: 'attributes.cost', label: 'Current Cost', money: true },
   { path: 'attributes.markup', label: 'Markup' },
   { path: 'notes', label: 'Notes' },
 ];
@@ -185,7 +185,7 @@ const itemLabelFor = (sectionType, item) => {
     return attrs.name || 'Factory operation';
   }
   if (sectionType === 'VARIANT') {
-    return attrs.finishName || 'Finish variant';
+    return attrs.finishName || attrs.priceGroup || 'Finish price group';
   }
   return 'Line';
 };
@@ -380,47 +380,78 @@ const computeBomChanges = (snapshotBefore, snapshotAfter) => {
 
 /**
  * Compact labels for audit list / filters (human readable, no raw paths).
+ * Prefer item cards: "LEFT SIDE: Qty 2 → 3".
  */
+const displayOrDash = (value) => {
+  if (value === null || value === undefined || value === '') return '—';
+  return String(value);
+};
+
 const summarizeBomChangedFields = (changes = []) => {
   const labels = [];
   const seen = new Set();
+  const byItem = new Map();
 
   for (const change of changes) {
-    let label = change.field;
-    if (change.action === ACTIONS.ADDED && change.itemLabel) {
-      label =
-        change.section === SECTION_LABELS.HARDWARE
-          ? `Added Hardware`
-          : change.section === SECTION_LABELS.BOARD
-            ? `Added Board`
-            : change.section === SECTION_LABELS.FACTORY
-              ? `Added Operation`
-              : change.section === SECTION_LABELS.VARIANT
-                ? `Added Finish`
-                : `Added ${change.itemLabel}`;
-    } else if (change.action === ACTIONS.REMOVED && change.itemLabel) {
-      label =
-        change.section === SECTION_LABELS.HARDWARE
-          ? `Removed Hardware`
-          : change.section === SECTION_LABELS.BOARD
-            ? `Removed Board`
-            : change.section === SECTION_LABELS.FACTORY
-              ? `Removed Operation`
-              : change.section === SECTION_LABELS.VARIANT
-                ? `Removed Finish`
-                : `Removed ${change.itemLabel}`;
-    } else if (change.section && change.section !== HEADER_SECTION) {
-      label = `${change.section.replace(/s$/, '')} ${change.field}`.replace(/\s+/g, ' ').trim();
-      // Prefer clearer short labels
-      if (change.section === SECTION_LABELS.BOARD) label = `Board ${change.field}`;
-      if (change.section === SECTION_LABELS.HARDWARE) label = `Hardware ${change.field}`;
-      if (change.section === SECTION_LABELS.FACTORY) label = `Factory ${change.field}`;
-      if (change.section === SECTION_LABELS.VARIANT) label = `Variant ${change.field}`;
+    if (change.section === HEADER_SECTION || !change.itemLabel) {
+      let label =
+        change.section && change.section !== HEADER_SECTION
+          ? `${change.section}: ${change.field}`
+          : `Product ${change.field}`;
+      if (
+        change.oldValue != null &&
+        change.newValue != null &&
+        change.action === ACTIONS.MODIFIED
+      ) {
+        label = `${label} ${change.oldValue} → ${change.newValue}`;
+      }
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+      continue;
     }
 
-    if (!seen.has(label)) {
-      seen.add(label);
-      labels.push(label);
+    const key = `${change.section}:${change.itemKey || change.itemLabel}`;
+    if (!byItem.has(key)) {
+      byItem.set(key, {
+        section: change.section,
+        itemLabel: change.itemLabel,
+        action: change.action,
+        fields: [],
+      });
+    }
+    byItem.get(key).fields.push(change);
+  }
+
+  for (const group of byItem.values()) {
+    if (group.action === ACTIONS.ADDED) {
+      const label = `${group.section}: Added ${group.itemLabel}`;
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+      continue;
+    }
+    if (group.action === ACTIONS.REMOVED) {
+      const label = `${group.section}: Removed ${group.itemLabel}`;
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+      continue;
+    }
+
+    for (const field of group.fields) {
+      const arrow =
+        field.oldValue != null || field.newValue != null
+          ? ` ${displayOrDash(field.oldValue)} → ${displayOrDash(field.newValue)}`
+          : '';
+      const label = `${group.itemLabel}: ${field.field}${arrow}`;
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
     }
   }
 

@@ -9,6 +9,7 @@
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:users": "node scripts/seedUsers.js",
     "seed:hardware": "node scripts/seedHardware.js",
+    "seed:components": "node scripts/seedComponents.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

@@ -4,9 +4,11 @@ Manufacturing component catalogue + generic BOM sections.
 
 ## Structure
 
-- `component.model.js` — header (code, description, category, finish, dimensions, retail, hybrid versioning)
+- `component.model.js` — header (code, description, category, finish, dimensions, retail, hybrid versioning) plus optional catalogue identity (`range`, `type`, `modificationClass`, `region`, `categoryDescription`, `colourCode`, match flags) and `catalogueMetrics` (workbook source HW/FC/edging inputs)
 - `component.service.js` — list/detail, section/item orchestration, SUPERSEDED clone on update, import create
 - `component.controller.js` / `component.routes.js` / `component.validator.js`
+
+Dev seed (wipes demo, inserts Carcasses & BIC catalogue): `npm run seed:components` — see `server/scripts/README.md`.
 
 Related features:
 
@@ -36,3 +38,5 @@ Related features:
 - Hardware prices always resolve from Hardware Master at read time (DB-03)
 - Consultants never receive cost / margin fields
 - Manual CRUD → approvals; Admin import → live DIRECT write
+- List search includes product header fields plus child hardware codes/descriptions, board names/codes, factory operation names, and finish / price-group names on VARIANT items
+- Default section display names: Boards, Hardware, Factory, Finish Pricing (sectionType VARIANT unchanged)

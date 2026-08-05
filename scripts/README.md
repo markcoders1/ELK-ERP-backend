@@ -86,6 +86,51 @@ Skipped: Y
 
 ---
 
+## Seed components (Carcasses & BIC Catalogue)
+
+Replaces demo Components & BOM data with workbook-style catalogue products.
+
+**Development only.** By default this **deletes all** existing components, sections, and section items, then inserts catalogue rows (`1000DH`, `1200H_SD`, …) with:
+
+- Catalogue identity (Range, Type, Modification Class, Region, Colour Code, Match flags, …)
+- Workbook cost metrics (HW Cost / Markup / Retail, Masonite & Board usage, Edging, FC Markup, Wastage)
+- Finish Pricing matrix (Super White BisonLam, Sonae, PG Accent/Demand/…, ELKP, KC, Egger — **named finishes only**)
+- PG / SB codes stored as attributes on each finish (colour / price-group mapping) — **not** fake "Edging PG87" columns
+- Supporting BOARD / HARDWARE / FACTORY lines linked to Hardware Master when available
+
+### Command
+
+From the `server/` directory:
+
+```bash
+npm run seed:hardware   # recommended first (for live HW links)
+npm run seed:components
+```
+
+Requires `MONGODB_URI` in `.env`.
+
+Seed generators live in:
+
+- `scripts/data/catalogueProducts.js`
+- `scripts/data/catalogueFinishes.js`
+
+### Keep existing (no wipe)
+
+```bash
+SEED_COMPONENTS_KEEP=1 npm run seed:components
+```
+
+### Expected output
+
+```
+Wiped existing Components & BOM: …
+Catalogue finishes per product: 58
+Products inserted: 34
+No legacy demo codes (BU-/DR-/TW-) remain.
+```
+
+---
+
 ## Notes
 
 - Passwords are hashed with bcrypt (12 rounds), same as the auth service.

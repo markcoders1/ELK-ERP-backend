@@ -53,13 +53,31 @@ const calculateHardwareSection = (items = [], context = {}) => {
     return {
       itemId: item.id || item._id,
       hardwareId: hwId || null,
-      stockCode: hardware?.stockCode || null,
-      description: hardware?.description || null,
+      stockCode: hardware?.stockCode || item.attributes?.stockCode || null,
+      description: hardware?.description || item.attributes?.description || null,
+      groupCode: hardware?.groupCode || item.attributes?.groupCode || null,
+      supplierName: hardware?.supplierName || item.attributes?.supplierName || null,
+      supplierCode: hardware?.supplierCode || item.attributes?.supplierCode || null,
+      brand: hardware?.brand || item.attributes?.brand || null,
+      unit: hardware?.unit || item.attributes?.unit || 'ea',
+      pricingBasis: hardware?.pricingBasis || null,
+      importBatchId: hardware?.importBatchId || null,
+      importedAt: hardware?.importedAt || null,
       quantity: qty,
       unitCost: unitCost != null ? roundMoney(unitCost) : null,
       lineCost,
       notes: item.notes || '',
       missingHardware: Boolean(hwId) && !hardware,
+      pricingSource: hardware
+        ? {
+            type: 'Hardware Master',
+            code: hardware.stockCode,
+            supplier: hardware.supplierName || null,
+            group: hardware.groupCode || null,
+            importBatchId: hardware.importBatchId || null,
+            importedAt: hardware.importedAt || null,
+          }
+        : null,
     };
   });
 

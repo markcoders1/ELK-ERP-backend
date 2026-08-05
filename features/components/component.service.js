@@ -3,6 +3,7 @@ const Component = require('./component.model');
 const ComponentSection = require('../component-sections/componentSection.model');
 const SectionItem = require('../section-items/sectionItem.model');
 const HardwareItem = require('../hardware/hardwareItem.model');
+const Board = require('../boards/board.model');
 const AppError = require('../../utils/AppError');
 const {
   HTTP_STATUS,
@@ -35,11 +36,46 @@ const toOptionalNumber = (value) => {
 };
 
 const DEFAULT_SECTIONS = [
-  { sectionType: SECTION_TYPES.BOARD, name: 'Boards', sortOrder: 0 },
-  { sectionType: SECTION_TYPES.HARDWARE, name: 'Hardware', sortOrder: 1 },
-  { sectionType: SECTION_TYPES.FACTORY, name: 'Factory Operations', sortOrder: 2 },
-  { sectionType: SECTION_TYPES.VARIANT, name: 'Finish Variants', sortOrder: 3 },
+  { sectionType: SECTION_TYPES.BOARD, name: 'Board Components', sortOrder: 0 },
+  { sectionType: SECTION_TYPES.HARDWARE, name: 'Hardware Components', sortOrder: 1 },
+  { sectionType: SECTION_TYPES.FACTORY, name: 'Factory Components', sortOrder: 2 },
+  { sectionType: SECTION_TYPES.VARIANT, name: 'Finish Pricing', sortOrder: 3 },
 ];
+
+const pickStringField = (payload, base, key, fallback = '') => {
+  if (payload[key] !== undefined) return String(payload[key] ?? '').trim();
+  if (base[key] !== undefined) return base[key] || fallback;
+  return fallback;
+};
+
+const pickCatalogueMetrics = (payload, existingMetrics = {}) => {
+  const incoming =
+    payload.catalogueMetrics && typeof payload.catalogueMetrics === 'object'
+      ? payload.catalogueMetrics
+      : payload;
+  const keys = [
+    'hwCost',
+    'hwMarkup',
+    'hwRetail',
+    'fcMasoniteUsage',
+    'fcMasoniteCostPerM2',
+    'fcBoardUsage',
+    'fcWhiteMelamineCostPerM2',
+    'edgingUsage',
+    'edgingCostPerM2',
+    'fcMarkup',
+    'wastage',
+  ];
+  const next = { ...existingMetrics };
+  for (const key of keys) {
+    if (incoming[key] !== undefined) {
+      next[key] = toOptionalNumber(incoming[key]) ?? null;
+    } else if (next[key] === undefined) {
+      next[key] = null;
+    }
+  }
+  return next;
+};
 
 const buildHeaderPayload = (payload, { existing = null } = {}) => {
   const base = existing
@@ -52,6 +88,16 @@ const buildHeaderPayload = (payload, { existing = null } = {}) => {
         status: existing.status || 'Active',
         retailPrice: existing.retailPrice ?? null,
         isActive: existing.isActive !== false,
+        range: existing.range || '',
+        type: existing.type || '',
+        modificationClass: existing.modificationClass || '',
+        region: existing.region || '',
+        categoryDescription: existing.categoryDescription || '',
+        colourCode: existing.colourCode || '',
+        hwIncluded: existing.hwIncluded || '',
+        fcIncluded: existing.fcIncluded || '',
+        matchStatus: existing.matchStatus || '',
+        catalogueMetrics: existing.catalogueMetrics || {},
       }
     : {};
 
@@ -104,6 +150,16 @@ const buildHeaderPayload = (payload, { existing = null } = {}) => {
       payload.isActive !== undefined
         ? Boolean(payload.isActive)
         : base.isActive !== false,
+    range: pickStringField(payload, base, 'range'),
+    type: pickStringField(payload, base, 'type'),
+    modificationClass: pickStringField(payload, base, 'modificationClass'),
+    region: pickStringField(payload, base, 'region'),
+    categoryDescription: pickStringField(payload, base, 'categoryDescription'),
+    colourCode: pickStringField(payload, base, 'colourCode'),
+    hwIncluded: pickStringField(payload, base, 'hwIncluded'),
+    fcIncluded: pickStringField(payload, base, 'fcIncluded'),
+    matchStatus: pickStringField(payload, base, 'matchStatus'),
+    catalogueMetrics: pickCatalogueMetrics(payload, base.catalogueMetrics || {}),
   };
 };
 
@@ -228,6 +284,77 @@ const loadHardwareMap = async (items) => {
   return map;
 };
 
+/**
+ * Resolve Boards Master rows for BOARD section items (by attributes.boardId / boardCode).
+ * No schema change — enrichment only for read/display + calculator attrs.
+ */
+const loadBoardMap = async (items) => {
+  const boardItems = items.filter(
+    (i) => String(i.sectionType || '').toUpperCase() === SECTION_TYPES.BOARD
+  );
+  const ids = [
+    ...new Set(
+      boardItems
+        .map((i) => (i.attributes?.boardId || '').toString())
+        .filter(Boolean)
+    ),
+  ];
+  const codes = [
+    ...new Set(
+      boardItems
+        .map((i) => String(i.attributes?.boardCode || '').trim().toUpperCase())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (ids.length === 0 && codes.length === 0) return new Map();
+
+  const boards = await Board.find({
+    deletedAt: null,
+    $or: [
+      ...(ids.length ? [{ _id: { $in: ids } }] : []),
+      ...(codes.length ? [{ boardCode: { $in: codes } }] : []),
+    ],
+  }).lean();
+
+  const map = new Map();
+  for (const row of boards) {
+    map.set(row._id.toString(), row);
+    if (row.boardCode) map.set(`code:${String(row.boardCode).toUpperCase()}`, row);
+  }
+  return map;
+};
+
+const enrichBoardAttributes = (item, boardByKey) => {
+  const attrs = { ...(item.attributes || {}) };
+  const board =
+    boardByKey.get(String(attrs.boardId || '')) ||
+    boardByKey.get(`code:${String(attrs.boardCode || '').toUpperCase()}`) ||
+    null;
+  if (!board) return item;
+
+  return {
+    ...item,
+    attributes: {
+      ...attrs,
+      boardId: attrs.boardId || board._id?.toString() || board.id,
+      boardCode: attrs.boardCode || board.boardCode || '',
+      partName: attrs.partName || board.description || board.boardCode || '',
+      boardName: attrs.boardName || board.description || '',
+      boardType: attrs.boardType || board.boardType || '',
+      material: attrs.material || board.boardType || '',
+      thickness: attrs.thickness ?? board.thickness ?? null,
+      colour: attrs.colour || board.colour || '',
+      finish: attrs.finish || board.finish || '',
+      supplier: attrs.supplier || board.supplier || '',
+      range: attrs.range || board.range || '',
+      // Keep user-entered cut size; fill from master sheet size only if empty
+      length: attrs.length ?? board.height ?? null,
+      width: attrs.width ?? board.width ?? null,
+    },
+  };
+};
+
 const attachPricing = async (componentLean, { role = null, includeSectionDetails = false } = {}) => {
   const sections = await ComponentSection.find({ componentId: componentLean._id })
     .sort({ sortOrder: 1 })
@@ -237,12 +364,18 @@ const attachPricing = async (componentLean, { role = null, includeSectionDetails
     .lean();
 
   const hardwareById = await loadHardwareMap(items);
+  const boardByKey = await loadBoardMap(items);
 
   const sectionsForCalc = sections.map((section) => ({
     sectionType: section.sectionType,
     items: items
       .filter((i) => i.sectionId.toString() === section._id.toString())
-      .map((i) => SectionItem.toSafeObjectFromLean(i)),
+      .map((i) => {
+        const safe = SectionItem.toSafeObjectFromLean(i);
+        return String(section.sectionType).toUpperCase() === SECTION_TYPES.BOARD
+          ? enrichBoardAttributes(safe, boardByKey)
+          : safe;
+      }),
   }));
 
   const pricing = calculateComponentPricing({
@@ -322,7 +455,7 @@ const buildListFilter = async (query) => {
 
     const matchingHardware = await HardwareItem.find({
       deletedAt: null,
-      stockCode: codeRegex,
+      $or: [{ stockCode: codeRegex }, { description: codeRegex }],
     })
       .select('_id')
       .lean();
@@ -346,6 +479,36 @@ const buildListFilter = async (query) => {
         { 'attributes.partName': codeRegex },
         { 'attributes.boardType': codeRegex },
         { 'attributes.material': codeRegex },
+        { 'attributes.boardCode': codeRegex },
+        { 'attributes.childPartCode': codeRegex },
+        { 'attributes.childDescription': codeRegex },
+      ],
+    })
+      .select('componentId')
+      .lean();
+
+    const hardwareAttrRows = await SectionItem.find({
+      sectionType: SECTION_TYPES.HARDWARE,
+      $or: [
+        { 'attributes.stockCode': codeRegex },
+        { 'attributes.description': codeRegex },
+      ],
+    })
+      .select('componentId')
+      .lean();
+
+    const factoryRows = await SectionItem.find({
+      sectionType: SECTION_TYPES.FACTORY,
+      'attributes.name': codeRegex,
+    })
+      .select('componentId')
+      .lean();
+
+    const finishRows = await SectionItem.find({
+      sectionType: SECTION_TYPES.VARIANT,
+      $or: [
+        { 'attributes.finishName': codeRegex },
+        { 'attributes.priceGroup': codeRegex },
       ],
     })
       .select('componentId')
@@ -354,6 +517,9 @@ const buildListFilter = async (query) => {
     componentIdsFromChildren = [
       ...componentIdsFromChildren,
       ...boardRows.map((r) => r.componentId),
+      ...hardwareAttrRows.map((r) => r.componentId),
+      ...factoryRows.map((r) => r.componentId),
+      ...finishRows.map((r) => r.componentId),
     ];
 
     andClauses.push({
@@ -609,6 +775,16 @@ const supersedeCurrentVersion = async (liveComponent, { session }) => {
         dimensions: liveComponent.dimensions,
         status: liveComponent.status,
         retailPrice: liveComponent.retailPrice,
+        range: liveComponent.range || '',
+        type: liveComponent.type || '',
+        modificationClass: liveComponent.modificationClass || '',
+        region: liveComponent.region || '',
+        categoryDescription: liveComponent.categoryDescription || '',
+        colourCode: liveComponent.colourCode || '',
+        hwIncluded: liveComponent.hwIncluded || '',
+        fcIncluded: liveComponent.fcIncluded || '',
+        matchStatus: liveComponent.matchStatus || '',
+        catalogueMetrics: liveComponent.catalogueMetrics || {},
         isActive: liveComponent.isActive,
         deletedAt: null,
         importBatchId: liveComponent.importBatchId,
@@ -755,7 +931,14 @@ const listSectionItems = async (componentId, sectionId, { role } = {}) => {
     .lean();
 
   const hardwareById = await loadHardwareMap(items);
-  const safeItems = items.map((i) => SectionItem.toSafeObjectFromLean(i));
+  const boardByKey = await loadBoardMap(items);
+  const safeItems = items
+    .map((i) => SectionItem.toSafeObjectFromLean(i))
+    .map((i) =>
+      String(i.sectionType || '').toUpperCase() === SECTION_TYPES.BOARD
+        ? enrichBoardAttributes(i, boardByKey)
+        : i
+    );
   const calculated = calculateSection(section.sectionType, safeItems, {
     hardwareById,
   });
@@ -770,7 +953,10 @@ const listSectionItems = async (componentId, sectionId, { role } = {}) => {
     items: safeItems.map((item, idx) => {
       const row = calculated.breakdown[idx] || {};
       if (hideCosts) {
-        const { unitCost, lineCost, cost, ...rest } = { ...item, ...row };
+        const { unitCost, lineCost, cost, labourCost, machineCost, totalFinishCost, ...rest } = {
+          ...item,
+          ...row,
+        };
         return rest;
       }
       return { ...item, ...row };
