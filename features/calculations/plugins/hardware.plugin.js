@@ -9,7 +9,7 @@ const roundMoney = (value) => {
 
 /**
  * Resolve a live unit cost from a Hardware Master lean/doc source object.
- * Prefer agreed cost; fall back to max(CPT, JHB) via pricing calculator.
+ * Excel-faithful: use MNF Price (pricing.mnfPrice), not AGREED.
  */
 const resolveHardwareUnitCost = (hardwareSource) => {
   if (!hardwareSource) return null;
@@ -21,12 +21,10 @@ const resolveHardwareUnitCost = (hardwareSource) => {
     mnfMarkup: hardwareSource.mnfMarkup,
     frcMarkup: hardwareSource.frcMarkup,
     retailMarkup: hardwareSource.retailMarkup,
+    retFromSupplier: hardwareSource.retFromSupplier,
   });
 
-  if (pricing.agreed != null) return pricing.agreed;
-  if (hardwareSource.regionalCosts?.agreed != null) {
-    return Number(hardwareSource.regionalCosts.agreed);
-  }
+  if (pricing.mnfPrice != null) return pricing.mnfPrice;
   return null;
 };
 

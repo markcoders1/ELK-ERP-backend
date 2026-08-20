@@ -132,6 +132,8 @@ const ALL_IMPORT_BATCH_STATUSES = Object.values(IMPORT_BATCH_STATUS);
 
 const IMPORT_DUPLICATE_STRATEGY = {
   SKIP_EXISTING: 'SKIP_EXISTING',
+  /** Direct migration: update live rows that already exist (no approval). */
+  UPDATE_EXISTING: 'UPDATE_EXISTING',
   CREATE_PENDING_UPDATE: 'CREATE_PENDING_UPDATE',
 };
 

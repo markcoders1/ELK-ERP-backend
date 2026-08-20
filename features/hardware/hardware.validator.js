@@ -1,5 +1,9 @@
 const { body, param, query } = require('express-validator');
-const { ALL_PRICING_BASIS, HARDWARE_SORT_FIELDS } = require('../../config/constants');
+const {
+  ALL_PRICING_BASIS,
+  HARDWARE_SORT_FIELDS,
+  PRICING_BASIS,
+} = require('../../config/constants');
 
 const positiveMarkupRule = (field, label) =>
   body(field)
@@ -21,6 +25,20 @@ const regionalCostsRules = [
     .optional({ values: 'null' })
     .isFloat({ min: 0 })
     .withMessage('Agreed cost must be a number greater than or equal to 0'),
+];
+
+const retFromSupplierRules = [
+  body('retFromSupplier')
+    .optional({ values: 'null' })
+    .isFloat({ min: 0 })
+    .withMessage('RET from Supplier must be a number greater than or equal to 0'),
+  body('retFromSupplier').custom((value, { req }) => {
+    if (req.body?.pricingBasis !== PRICING_BASIS.RETAIL) return true;
+    if (value === '' || value === null || value === undefined) {
+      throw new Error('RET from Supplier is required when pricing basis is Retail');
+    }
+    return true;
+  }),
 ];
 
 const markupAndWeightRules = [
@@ -47,6 +65,7 @@ const createRules = [
   body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
   ...regionalCostsRules,
   ...markupAndWeightRules,
+  ...retFromSupplierRules,
 ];
 
 const forbiddenOnUpdateRules = [
@@ -84,6 +103,7 @@ const updateRules = [
     .isFloat({ min: 0 })
     .withMessage('Agreed cost must be a number greater than or equal to 0'),
   ...markupAndWeightRules,
+  ...retFromSupplierRules,
 ];
 
 const idParamRules = [param('id').isMongoId().withMessage('Invalid hardware item id')];

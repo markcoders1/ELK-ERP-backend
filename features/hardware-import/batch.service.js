@@ -136,8 +136,8 @@ const confirmImport = async (batchId, _options = {}, user) => {
     );
   }
 
-  // Duplicates are always skipped for direct migration imports.
-  const strategy = IMPORT_DUPLICATE_STRATEGY.SKIP_EXISTING;
+  // Direct migration: insert new rows; update existing stock codes in place (AD-024 / client rule).
+  const strategy = IMPORT_DUPLICATE_STRATEGY.UPDATE_EXISTING;
 
   batch.status = IMPORT_BATCH_STATUS.IMPORTING;
   batch.duplicateStrategy = strategy;
@@ -151,11 +151,16 @@ const confirmImport = async (batchId, _options = {}, user) => {
     reason: `Direct live import started (${batch.batchCode})`,
   });
 
-  const readyStatuses = [IMPORT_ROW_STATUS.VALID, IMPORT_ROW_STATUS.WARNING];
+  const readyStatuses = [
+    IMPORT_ROW_STATUS.VALID,
+    IMPORT_ROW_STATUS.WARNING,
+    IMPORT_ROW_STATUS.DUPLICATE,
+  ];
   const importedAt = new Date();
   let rowsImported = 0;
+  let rowsUpdated = 0;
   let rowsSkipped = batch.stats?.rowsSkipped || 0;
-  let duplicatesSkipped = batch.stats?.duplicates || 0;
+  let duplicatesSkipped = 0;
 
   try {
     // eslint-disable-next-line no-constant-condition
@@ -171,19 +176,15 @@ const confirmImport = async (batchId, _options = {}, user) => {
 
       if (rows.length === 0) break;
 
-      const payloads = [];
+      const insertPayloads = [];
+      const updatePayloads = [];
       const metaByStockCode = new Map();
       const skippedIds = [];
       const candidateIds = [];
 
       for (const row of rows) {
-        if (
-          row.isDuplicateInDatabase ||
-          row.status === IMPORT_ROW_STATUS.DUPLICATE ||
-          row.status === IMPORT_ROW_STATUS.ERROR
-        ) {
+        if (row.status === IMPORT_ROW_STATUS.ERROR && !row.isDuplicateInDatabase) {
           rowsSkipped += 1;
-          if (row.isDuplicateInDatabase) duplicatesSkipped += 1;
           skippedIds.push(row._id);
           continue;
         }
@@ -194,9 +195,14 @@ const confirmImport = async (batchId, _options = {}, user) => {
           continue;
         }
 
-        payloads.push(row.payload);
         metaByStockCode.set(row.payload.stockCode, row);
         candidateIds.push(row._id);
+
+        if (row.isDuplicateInDatabase || row.status === IMPORT_ROW_STATUS.DUPLICATE) {
+          updatePayloads.push(row.payload);
+        } else {
+          insertPayloads.push(row.payload);
+        }
       }
 
       if (skippedIds.length > 0) {
@@ -207,58 +213,100 @@ const confirmImport = async (batchId, _options = {}, user) => {
         );
       }
 
-      if (payloads.length === 0) continue;
-
-      // eslint-disable-next-line no-await-in-loop
-      const inserted = await hardwareService.createManyFromImport(payloads, {
-        userId: user.id,
-        importBatchId: batch.batchCode,
-        importedAt,
-      });
-
-      const insertedIds = [];
+      const processedIds = [];
       const auditDocs = [];
 
-      inserted.forEach((doc) => {
-        const previewRow = metaByStockCode.get(doc.stockCode);
-        if (!previewRow) return;
-
-        insertedIds.push(previewRow._id);
-        rowsImported += 1;
-
-        auditDocs.push({
-          entityType: ENTITY_TYPES.HARDWARE,
-          changeRequestId: null,
-          hardwareId: doc._id,
-          stockCode: doc.stockCode,
-          action: IMPORT_AUDIT_ACTIONS.HARDWARE_IMPORTED,
-          decision: null,
-          changedFields: [],
-          submittedBy: user.id,
-          decidedBy: user.id,
-          reason: `Imported from ${batch.filename} row ${previewRow.excelRowNumber}`,
-          snapshotBefore: null,
-          snapshotAfter: {
-            filename: batch.filename,
-            excelRowNumber: previewRow.excelRowNumber,
-            stockCode: doc.stockCode,
-            importBatchId: batch.batchCode,
-            batchMongoId: batch._id,
-            hardwareId: doc._id,
-            importedAt,
-          },
+      if (insertPayloads.length > 0) {
+        // eslint-disable-next-line no-await-in-loop
+        const inserted = await hardwareService.createManyFromImport(insertPayloads, {
+          userId: user.id,
+          importBatchId: batch.batchCode,
+          importedAt,
         });
-      });
 
-      // Rows that failed insert (e.g. race duplicate) are marked skipped.
+        inserted.forEach((doc) => {
+          const previewRow = metaByStockCode.get(doc.stockCode);
+          if (!previewRow) return;
+
+          processedIds.push(previewRow._id);
+          rowsImported += 1;
+
+          auditDocs.push({
+            entityType: ENTITY_TYPES.HARDWARE,
+            changeRequestId: null,
+            hardwareId: doc._id,
+            stockCode: doc.stockCode,
+            action: IMPORT_AUDIT_ACTIONS.HARDWARE_IMPORTED,
+            decision: null,
+            changedFields: [],
+            submittedBy: user.id,
+            decidedBy: user.id,
+            reason: `Imported from ${batch.filename} row ${previewRow.excelRowNumber}`,
+            snapshotBefore: null,
+            snapshotAfter: {
+              filename: batch.filename,
+              excelRowNumber: previewRow.excelRowNumber,
+              stockCode: doc.stockCode,
+              importBatchId: batch.batchCode,
+              batchMongoId: batch._id,
+              hardwareId: doc._id,
+              importedAt,
+              applyMode: 'INSERT',
+            },
+          });
+        });
+      }
+
+      if (updatePayloads.length > 0) {
+        // eslint-disable-next-line no-await-in-loop
+        const { updated } = await hardwareService.updateManyFromImport(updatePayloads, {
+          userId: user.id,
+          importBatchId: batch.batchCode,
+          importedAt,
+        });
+
+        updated.forEach((doc) => {
+          const previewRow = metaByStockCode.get(doc.stockCode);
+          if (!previewRow) return;
+
+          processedIds.push(previewRow._id);
+          rowsUpdated += 1;
+
+          auditDocs.push({
+            entityType: ENTITY_TYPES.HARDWARE,
+            changeRequestId: null,
+            hardwareId: doc._id,
+            stockCode: doc.stockCode,
+            action: IMPORT_AUDIT_ACTIONS.HARDWARE_IMPORTED,
+            decision: null,
+            changedFields: [],
+            submittedBy: user.id,
+            decidedBy: user.id,
+            reason: `Updated from ${batch.filename} row ${previewRow.excelRowNumber} (direct re-import)`,
+            snapshotBefore: null,
+            snapshotAfter: {
+              filename: batch.filename,
+              excelRowNumber: previewRow.excelRowNumber,
+              stockCode: doc.stockCode,
+              importBatchId: batch.batchCode,
+              batchMongoId: batch._id,
+              hardwareId: doc._id,
+              importedAt,
+              applyMode: 'UPDATE',
+            },
+          });
+        });
+      }
+
+      // Rows that failed insert/update are marked skipped.
       const failedIds = candidateIds.filter(
-        (id) => !insertedIds.some((insertedId) => String(insertedId) === String(id))
+        (id) => !processedIds.some((processedId) => String(processedId) === String(id))
       );
 
-      if (insertedIds.length > 0) {
+      if (processedIds.length > 0) {
         // eslint-disable-next-line no-await-in-loop
         await ImportPreviewRow.updateMany(
-          { _id: { $in: insertedIds } },
+          { _id: { $in: processedIds } },
           { $set: { status: IMPORT_ROW_STATUS.QUEUED } }
         );
       }
@@ -284,6 +332,7 @@ const confirmImport = async (batchId, _options = {}, user) => {
     batch.stats = {
       ...(batch.stats.toObject?.() || batch.stats),
       rowsImported,
+      rowsUpdated,
       rowsSkipped,
       duplicates: duplicatesSkipped,
       rowsReady: Math.max(0, batch.stats?.rowsReady || 0),
@@ -294,13 +343,14 @@ const confirmImport = async (batchId, _options = {}, user) => {
       action: IMPORT_AUDIT_ACTIONS.IMPORT_COMPLETED,
       actorId: user.id,
       batch,
-      reason: `Import completed — ${rowsImported} row(s) imported live, ${rowsSkipped} skipped, ${duplicatesSkipped} duplicates`,
+      reason: `Import completed — ${rowsImported} inserted, ${rowsUpdated} updated live, ${rowsSkipped} skipped`,
       snapshotAfter: {
         batchId: batch._id,
         batchCode: batch.batchCode,
         batchName: batch.batchName,
         filename: batch.filename,
         rowsImported,
+        rowsUpdated,
         rowsSkipped,
         duplicates: duplicatesSkipped,
         applyMode: IMPORT_APPLY_MODE.DIRECT,

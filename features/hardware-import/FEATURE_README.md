@@ -69,5 +69,4 @@ Live writes reuse `hardware.service.createManyFromImport`.
 
 - SheetJS loads the workbook into memory (acceptable for 20k rows / 20MB)
 - Formula evaluation is intentionally not supported — displayed values only
-- `RET from Supplier` not persisted yet (same as Hardware CRUD)
 - Boards / Products / BOM import adapters not started

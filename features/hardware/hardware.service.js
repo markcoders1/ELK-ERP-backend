@@ -7,6 +7,11 @@ const {
   calculateHardwarePricing,
   DEFAULT_MARKUP,
 } = require('./hardwarePricing.service');
+const {
+  propagateHardwareChange,
+  propagateHardwareChanges,
+} = require('../cascade/cascade.service');
+const hardwareItemRangeService = require('../hardware-item-range/hardwareItemRange.service');
 
 const normalizeStockCode = (stockCode) => stockCode.trim().toUpperCase();
 const normalizeGroupCode = (groupCode) => groupCode.trim().toUpperCase();
@@ -23,7 +28,15 @@ const toOptionalNumber = (value) => {
  * Builds persisted regional costs.
  * Agreed is always derived from the pricing calculator (not trusted from client).
  */
-const buildRegionalCosts = ({ cpt, jhb, pricingBasis, mnfMarkup, frcMarkup, retailMarkup }) => {
+const buildRegionalCosts = ({
+  cpt,
+  jhb,
+  pricingBasis,
+  mnfMarkup,
+  frcMarkup,
+  retailMarkup,
+  retFromSupplier,
+}) => {
   const pricing = calculateHardwarePricing({
     cpt,
     jhb,
@@ -31,6 +44,7 @@ const buildRegionalCosts = ({ cpt, jhb, pricingBasis, mnfMarkup, frcMarkup, reta
     mnfMarkup,
     frcMarkup,
     retailMarkup,
+    retFromSupplier,
   });
 
   return {
@@ -123,6 +137,7 @@ const create = async (payload, userId) => {
   const mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
   const frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
   const retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  const retFromSupplier = toOptionalNumber(payload.retFromSupplier) ?? null;
   const weight = toOptionalNumber(payload.weight) ?? 0;
   const cpt = toOptionalNumber(payload.regionalCosts?.cpt);
   const jhb = toOptionalNumber(payload.regionalCosts?.jhb);
@@ -141,11 +156,13 @@ const create = async (payload, userId) => {
         mnfMarkup,
         frcMarkup,
         retailMarkup,
+        retFromSupplier,
       }),
       pricingBasis: payload.pricingBasis,
       mnfMarkup,
       frcMarkup,
       retailMarkup,
+      retFromSupplier,
       weight,
       isImport: payload.isImport ?? false,
       isActive: payload.isActive ?? true,
@@ -153,7 +170,9 @@ const create = async (payload, userId) => {
       updatedBy: userId,
     });
 
-    return item.toSafeObject();
+    const safe = item.toSafeObject();
+    await propagateHardwareChange(safe.stockCode);
+    return safe;
   } catch (error) {
     if (error.code === 11000) {
       throw new AppError('Stock code already exists', HTTP_STATUS.CONFLICT);
@@ -201,6 +220,10 @@ const update = async (id, payload, userId) => {
     item.retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
   }
 
+  if (payload.retFromSupplier !== undefined) {
+    item.retFromSupplier = toOptionalNumber(payload.retFromSupplier) ?? null;
+  }
+
   if (payload.weight !== undefined) {
     item.weight = toOptionalNumber(payload.weight) ?? 0;
   }
@@ -222,7 +245,8 @@ const update = async (id, payload, userId) => {
     payload.pricingBasis !== undefined ||
     payload.mnfMarkup !== undefined ||
     payload.frcMarkup !== undefined ||
-    payload.retailMarkup !== undefined
+    payload.retailMarkup !== undefined ||
+    payload.retFromSupplier !== undefined
   ) {
     const nextCpt =
       payload.regionalCosts && Object.prototype.hasOwnProperty.call(payload.regionalCosts, 'cpt')
@@ -240,13 +264,16 @@ const update = async (id, payload, userId) => {
       mnfMarkup: item.mnfMarkup,
       frcMarkup: item.frcMarkup,
       retailMarkup: item.retailMarkup,
+      retFromSupplier: item.retFromSupplier,
     });
   }
 
   item.updatedBy = userId;
   await item.save();
 
-  return item.toSafeObject();
+  const safe = item.toSafeObject();
+  await propagateHardwareChange(safe.stockCode);
+  return safe;
 };
 
 const softDelete = async (id, userId) => {
@@ -260,6 +287,8 @@ const softDelete = async (id, userId) => {
   item.updatedBy = userId;
   await item.save();
 
+  await hardwareItemRangeService.deactivateByStockCode(item.stockCode);
+
   return item.toSafeObject();
 };
 
@@ -272,6 +301,7 @@ const buildImportDocument = (payload, { userId, importBatchId, importedAt }) => 
   const mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
   const frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
   const retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  const retFromSupplier = toOptionalNumber(payload.retFromSupplier) ?? null;
   const weight = toOptionalNumber(payload.weight) ?? 0;
   const cpt = toOptionalNumber(payload.regionalCosts?.cpt);
   const jhb = toOptionalNumber(payload.regionalCosts?.jhb);
@@ -289,11 +319,13 @@ const buildImportDocument = (payload, { userId, importBatchId, importedAt }) => 
       mnfMarkup,
       frcMarkup,
       retailMarkup,
+      retFromSupplier,
     }),
     pricingBasis: payload.pricingBasis,
     mnfMarkup,
     frcMarkup,
     retailMarkup,
+    retFromSupplier,
     weight,
     isImport: payload.isImport ?? true,
     isActive: payload.isActive ?? true,
@@ -316,16 +348,73 @@ const createManyFromImport = async (payloads, { userId, importBatchId, importedA
     buildImportDocument(payload, { userId, importBatchId, importedAt })
   );
 
+  let inserted = [];
+
   try {
-    return await HardwareItem.insertMany(docs, { ordered: false });
+    inserted = await HardwareItem.insertMany(docs, { ordered: false });
   } catch (error) {
     // Partial success is expected when a race introduces a duplicate mid-import.
     if (error.writeErrors || error.code === 11000) {
-      const inserted = error.insertedDocs || [];
-      return inserted;
+      inserted = error.insertedDocs || [];
+    } else {
+      throw error;
     }
-    throw error;
   }
+
+  const stockCodes = inserted.map((doc) => doc.stockCode).filter(Boolean);
+  if (stockCodes.length > 0) {
+    await propagateHardwareChanges(stockCodes);
+  }
+
+  return inserted;
+};
+
+/**
+ * Direct Excel re-import: update existing live rows by stockCode (no approval).
+ * Returns { updated: HardwareItem[], stockCodes: string[] }.
+ */
+const updateManyFromImport = async (payloads, { userId, importBatchId, importedAt }) => {
+  if (!payloads.length) return { updated: [], stockCodes: [] };
+
+  const updated = [];
+  const stockCodes = [];
+
+  // eslint-disable-next-line no-restricted-syntax
+  for (const payload of payloads) {
+    const stockCode = normalizeStockCode(payload.stockCode);
+    // eslint-disable-next-line no-await-in-loop
+    const item = await HardwareItem.findOne({ stockCode, ...notDeletedFilter });
+    if (!item) continue;
+
+    const doc = buildImportDocument(payload, { userId, importBatchId, importedAt });
+    item.groupCode = doc.groupCode;
+    item.description = doc.description;
+    item.supplierName = doc.supplierName;
+    item.supplierCode = doc.supplierCode;
+    item.regionalCosts = doc.regionalCosts;
+    item.pricingBasis = doc.pricingBasis;
+    item.mnfMarkup = doc.mnfMarkup;
+    item.frcMarkup = doc.frcMarkup;
+    item.retailMarkup = doc.retailMarkup;
+    item.retFromSupplier = doc.retFromSupplier;
+    item.weight = doc.weight;
+    item.isImport = true;
+    item.isActive = doc.isActive;
+    item.importBatchId = importBatchId;
+    item.importedBy = userId;
+    item.importedAt = importedAt;
+    item.updatedBy = userId;
+    // eslint-disable-next-line no-await-in-loop
+    await item.save();
+    updated.push(item);
+    stockCodes.push(stockCode);
+  }
+
+  if (stockCodes.length > 0) {
+    await propagateHardwareChanges(stockCodes);
+  }
+
+  return { updated, stockCodes };
 };
 
 module.exports = {
@@ -336,4 +425,5 @@ module.exports = {
   softDelete,
   buildImportDocument,
   createManyFromImport,
+  updateManyFromImport,
 };

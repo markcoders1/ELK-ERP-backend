@@ -79,6 +79,12 @@ const hardwareItemSchema = new mongoose.Schema(
       min: 0,
       default: DEFAULT_MARKUP,
     },
+    /** Master File "RET from Supplier" — required when pricingBasis = Retail. */
+    retFromSupplier: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
     weight: {
       type: Number,
       min: 0,
@@ -145,6 +151,7 @@ const buildSourceObject = (item) => ({
   mnfMarkup: item.mnfMarkup ?? DEFAULT_MARKUP,
   frcMarkup: item.frcMarkup ?? DEFAULT_MARKUP,
   retailMarkup: item.retailMarkup ?? DEFAULT_MARKUP,
+  retFromSupplier: item.retFromSupplier ?? null,
   weight: item.weight ?? 0,
   isImport: item.isImport,
   importBatchId: item.importBatchId || null,

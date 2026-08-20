@@ -1,17 +1,20 @@
 /**
- * Hardware pricing calculations — isolated so client formula changes
- * only need updates here (and the mirrored client util).
+ * Hardware Master File pricing — Excel-faithful formulas from Master File sheet.
  *
- * Temporary business assumptions throughout.
- * Replace when client finalises pricing rules.
+ * Source: Hardware Master File_National_01102023.xlsx → Master File
+ *
+ * VAR          = JHB − CPT
+ * AGREED       = MAX(CPT, JHB)
+ * MNF Price    = AGREED × MNF Markup
+ * FRC Price    = IF(FRC Base="Agreed", AGREED×FRC Markup, RET Excl×FRC Markup)
+ * RET Excl VAT = IF(FRC Base="Agreed", FRC×RET Markup, RET from Supplier)
+ * RET Incl VAT = RET Excl × 1.15
+ * Margins      = (selling − cost) / selling × 100
  */
 
 const { PRICING_BASIS } = require('../../config/constants');
 
-// Temporary business assumption.
-// Replace when client finalises VAT handling.
 const VAT_MULTIPLIER = 1.15;
-
 const DEFAULT_MARKUP = 1;
 
 const toNumber = (value, fallback = null) => {
@@ -22,7 +25,7 @@ const toNumber = (value, fallback = null) => {
 
 const roundMoney = (value) => {
   if (value === null || value === undefined || Number.isNaN(value)) return null;
-  return Math.round(value * 100) / 100;
+  return Math.round(value * 10000) / 10000;
 };
 
 const roundPercent = (value) => {
@@ -30,11 +33,6 @@ const roundPercent = (value) => {
   return Math.round(value * 100) / 100;
 };
 
-/**
- * Temporary business assumption.
- * Standard margin % = (selling − cost) / selling × 100.
- * Replace when client finalises margin definitions.
- */
 const standardMarginPercent = (selling, cost) => {
   if (selling == null || cost == null || selling === 0) return null;
   return roundPercent(((selling - cost) / selling) * 100);
@@ -48,28 +46,27 @@ const maxCost = (cpt, jhb) => {
 };
 
 const buildMargins = ({ agreed, mnfPrice, frcPrice, retailPriceExVat }) => ({
-  // Temporary business assumption. Replace when client finalises margin rules.
   marginFranRet: standardMarginPercent(retailPriceExVat, frcPrice),
   marginHwMnf: standardMarginPercent(mnfPrice, agreed),
   marginHwFran: standardMarginPercent(frcPrice, agreed),
 });
 
 /**
- * Scenario 1 — Pricing Basis = Agreed
- * User enters CPT, JHB, markups; system calculates the rest.
+ * FRC Base = Agreed
+ * FRC = AGREED × FRC Markup (Excel N = I×L)
+ * RET Excl = FRC × RET Markup (Excel P = N×O)
  */
 const calculateAgreedBasis = ({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }) => {
-  // Temporary business assumption. Replace when client finalises pricing rules.
   const varCost = cpt != null && jhb != null ? roundMoney(jhb - cpt) : null;
   const agreed = roundMoney(maxCost(cpt, jhb));
-
   const mnfPrice = agreed != null ? roundMoney(agreed * mnfMarkup) : null;
-  // Temporary: FRC base is the MNF price the franchise markup applies to.
-  const frcBase = mnfPrice;
-  const frcPrice = frcBase != null ? roundMoney(frcBase * frcMarkup) : null;
-  const retailPriceExVat = frcPrice != null ? roundMoney(frcPrice * retailMarkup) : null;
+  const frcPrice = agreed != null ? roundMoney(agreed * frcMarkup) : null;
+  const retailPriceExVat =
+    frcPrice != null ? roundMoney(frcPrice * retailMarkup) : null;
   const retailPriceInclVat =
-    retailPriceExVat != null ? roundMoney(retailPriceExVat * VAT_MULTIPLIER) : null;
+    retailPriceExVat != null
+      ? roundMoney(retailPriceExVat * VAT_MULTIPLIER)
+      : null;
 
   return {
     var: varCost,
@@ -77,9 +74,10 @@ const calculateAgreedBasis = ({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }) 
     mnfMarkup,
     mnfPrice,
     frcMarkup,
-    frcBase,
+    frcBase: PRICING_BASIS.AGREED,
     frcPrice,
     retailMarkup,
+    retFromSupplier: null,
     retailPriceExVat,
     retailPriceInclVat,
     margins: buildMargins({ agreed, mnfPrice, frcPrice, retailPriceExVat }),
@@ -87,25 +85,29 @@ const calculateAgreedBasis = ({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }) 
 };
 
 /**
- * Scenario 2 — Pricing Basis = Retail
- * Retail is supplied; costs are derived backwards.
+ * FRC Base = Retail
+ * RET Excl = RET from Supplier (Excel P = R)
+ * FRC = RET Excl × FRC Markup (Excel N = P×L)
+ * AGREED / MNF still from regional costs (Excel keeps those formulas)
  */
-const calculateRetailBasis = ({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }) => {
-  // Temporary business assumption.
-  // Treat max(CPT, JHB) as supplier retail Ex VAT until "RET from Supplier" is clarified.
-  // Then reverse through markups. Replace when client finalises reverse formulas.
+const calculateRetailBasis = ({
+  cpt,
+  jhb,
+  mnfMarkup,
+  frcMarkup,
+  retailMarkup,
+  retFromSupplier,
+}) => {
   const varCost = cpt != null && jhb != null ? roundMoney(jhb - cpt) : null;
-  const retailPriceExVat = roundMoney(maxCost(cpt, jhb));
-  const retailPriceInclVat =
-    retailPriceExVat != null ? roundMoney(retailPriceExVat * VAT_MULTIPLIER) : null;
-
+  const agreed = roundMoney(maxCost(cpt, jhb));
+  const mnfPrice = agreed != null ? roundMoney(agreed * mnfMarkup) : null;
+  const retailPriceExVat = roundMoney(retFromSupplier);
   const frcPrice =
-    retailPriceExVat != null && retailMarkup > 0
-      ? roundMoney(retailPriceExVat / retailMarkup)
+    retailPriceExVat != null ? roundMoney(retailPriceExVat * frcMarkup) : null;
+  const retailPriceInclVat =
+    retailPriceExVat != null
+      ? roundMoney(retailPriceExVat * VAT_MULTIPLIER)
       : null;
-  const mnfPrice = frcPrice != null && frcMarkup > 0 ? roundMoney(frcPrice / frcMarkup) : null;
-  const frcBase = mnfPrice;
-  const agreed = mnfPrice != null && mnfMarkup > 0 ? roundMoney(mnfPrice / mnfMarkup) : null;
 
   return {
     var: varCost,
@@ -113,9 +115,10 @@ const calculateRetailBasis = ({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }) 
     mnfMarkup,
     mnfPrice,
     frcMarkup,
-    frcBase,
+    frcBase: PRICING_BASIS.RETAIL,
     frcPrice,
     retailMarkup,
+    retFromSupplier: retailPriceExVat,
     retailPriceExVat,
     retailPriceInclVat,
     margins: buildMargins({ agreed, mnfPrice, frcPrice, retailPriceExVat }),
@@ -124,7 +127,6 @@ const calculateRetailBasis = ({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }) 
 
 /**
  * @param {object} input — hardware item source fields (flat or with regionalCosts)
- * @returns {object} calculated pricing fields + margins
  */
 const calculateHardwarePricing = (input = {}) => {
   const regional = input.regionalCosts || {};
@@ -134,11 +136,21 @@ const calculateHardwarePricing = (input = {}) => {
   const mnfMarkup = toNumber(input.mnfMarkup, DEFAULT_MARKUP);
   const frcMarkup = toNumber(input.frcMarkup, DEFAULT_MARKUP);
   const retailMarkup = toNumber(input.retailMarkup, DEFAULT_MARKUP);
+  const retFromSupplier = toNumber(
+    input.retFromSupplier ?? regional.retFromSupplier
+  );
 
   if (pricingBasis === PRICING_BASIS.RETAIL) {
     return {
       pricingBasis,
-      ...calculateRetailBasis({ cpt, jhb, mnfMarkup, frcMarkup, retailMarkup }),
+      ...calculateRetailBasis({
+        cpt,
+        jhb,
+        mnfMarkup,
+        frcMarkup,
+        retailMarkup,
+        retFromSupplier,
+      }),
     };
   }
 

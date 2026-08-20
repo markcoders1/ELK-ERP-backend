@@ -131,6 +131,37 @@ No legacy demo codes (BU-/DR-/TW-) remain.
 
 ---
 
+## Seed NCL cascade (HW / FC / Catalogue)
+
+Loads the National Components List MASTER workbook into:
+
+- `HwComponentLine` (sheet **HW Components List**) — cost from HIR MNF / Hardware Master
+- `FcComponentLine` (sheet **FC Components List**) — `boardM2` / `edgingLinearMeter` via `fcFormulas`
+- `Component` APPROVED rows (sheet **Carcasses & BIC Catalogue**, header row 5) — identity + `catalogueMetrics`, then cascade `hwCost` / `hwRetail`
+
+**Wipes only** HW/FC line collections (not Hardware Master / HIR). Components are upserted by `componentCode`. Board Range is skipped (Board model has no `pricePerM2`).
+
+### Command
+
+From the `server/` directory (after Hardware is seeded):
+
+```bash
+npm run seed:hardware   # if HIR/MNF not already present
+npm run seed:ncl-cascade
+```
+
+Optional path override:
+
+```bash
+NCL_XLSX_PATH="/path/to/National Components List_MASTER 2026.xlsx" npm run seed:ncl-cascade
+```
+
+Default path: `/home/syed-ahad/Downloads/National Components List_MASTER 2026 (2).xlsx`
+
+The workbook is ~48MB; the script loads only the three required sheets.
+
+---
+
 ## Notes
 
 - Passwords are hashed with bcrypt (12 rounds), same as the auth service.

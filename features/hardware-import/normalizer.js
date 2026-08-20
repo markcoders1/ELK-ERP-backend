@@ -242,13 +242,7 @@ const normalizeHardwareRow = (raw, headers) => {
     }
   });
 
-  if (lookup.retFromSupplier && emptyToNull(getRawField(raw, lookup, 'retFromSupplier')) != null) {
-    infos.push({
-      severity: 'INFO',
-      code: 'RET_FROM_SUPPLIER_IGNORED',
-      message: 'RET from Supplier is not stored yet — value ignored',
-    });
-  }
+  const retFromSupplier = normalizeNumber(getRawField(raw, lookup, 'retFromSupplier'));
 
   const payload = {
     groupCode,
@@ -264,6 +258,7 @@ const normalizeHardwareRow = (raw, headers) => {
     mnfMarkup,
     frcMarkup,
     retailMarkup,
+    retFromSupplier,
     weight,
     isImport: Boolean(isImport),
     isActive: isActive !== false,

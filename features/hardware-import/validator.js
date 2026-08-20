@@ -52,6 +52,7 @@ const validateHardwareRow = (normalized, context = {}) => {
     { key: 'mnfMarkup', label: 'MNF Markup', value: payload.mnfMarkup },
     { key: 'frcMarkup', label: 'FRC Markup', value: payload.frcMarkup },
     { key: 'retailMarkup', label: 'RET Markup', value: payload.retailMarkup },
+    { key: 'retFromSupplier', label: 'RET from Supplier', value: payload.retFromSupplier },
     { key: 'weight', label: 'Weight', value: payload.weight },
   ];
 
@@ -65,6 +66,19 @@ const validateHardwareRow = (normalized, context = {}) => {
       issues.push(issue('ERROR', 'NEGATIVE_VALUE', `${rowLabel}: ${label} cannot be negative`));
     }
   });
+
+  if (
+    payload.pricingBasis === PRICING_BASIS.RETAIL &&
+    (payload.retFromSupplier == null || payload.retFromSupplier === '')
+  ) {
+    issues.push(
+      issue(
+        'WARNING',
+        'MISSING_RET_FROM_SUPPLIER',
+        `${rowLabel}: RET from Supplier missing — required for Retail pricing basis`
+      )
+    );
+  }
 
   if (!payload.supplierName) {
     issues.push(issue('WARNING', 'MISSING_SUPPLIER', `${rowLabel}: Supplier missing`));

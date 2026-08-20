@@ -51,6 +51,7 @@ const buildHardwareSnapshot = (payload, { existing = null } = {}) => {
         mnfMarkup: existing.mnfMarkup ?? DEFAULT_MARKUP,
         frcMarkup: existing.frcMarkup ?? DEFAULT_MARKUP,
         retailMarkup: existing.retailMarkup ?? DEFAULT_MARKUP,
+        retFromSupplier: existing.retFromSupplier ?? null,
         weight: existing.weight ?? 0,
         isImport: existing.isImport ?? false,
         isActive: existing.isActive !== false,
@@ -69,6 +70,10 @@ const buildHardwareSnapshot = (payload, { existing = null } = {}) => {
     payload.retailMarkup !== undefined
       ? toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP
       : base.retailMarkup ?? DEFAULT_MARKUP;
+  const retFromSupplier =
+    payload.retFromSupplier !== undefined
+      ? toOptionalNumber(payload.retFromSupplier) ?? null
+      : base.retFromSupplier ?? null;
 
   const pricingBasis = payload.pricingBasis ?? base.pricingBasis;
   const existingRegional = base.regionalCosts || {};
@@ -89,6 +94,7 @@ const buildHardwareSnapshot = (payload, { existing = null } = {}) => {
     mnfMarkup,
     frcMarkup,
     retailMarkup,
+    retFromSupplier,
   });
 
   const stockCode = payload.stockCode
@@ -119,6 +125,7 @@ const buildHardwareSnapshot = (payload, { existing = null } = {}) => {
     mnfMarkup,
     frcMarkup,
     retailMarkup,
+    retFromSupplier,
     weight:
       payload.weight !== undefined
         ? toOptionalNumber(payload.weight) ?? 0
@@ -157,6 +164,7 @@ const COMPARISON_FIELDS = [
   'mnfMarkup',
   'frcMarkup',
   'retailMarkup',
+  'retFromSupplier',
   'weight',
   'isImport',
   'isActive',
