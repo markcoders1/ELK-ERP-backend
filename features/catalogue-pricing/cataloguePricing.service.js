@@ -1,25 +1,25 @@
 /**
  * Excel-faithful Carcasses & BIC Catalogue pricing rollup.
  *
- * Does NOT persist by default — callers decide whether to write
- * Component.catalogueMetrics (cascade updates hwCost / hwRetail).
+ * Proven from National Components List → Carcasses & BIC Catalogue:
  *
- * hwCost     = SUMIF HW Components TOTAL COST for product
- * hwRetail   = hwCost × hwMarkup (default 2.1)
- * fcMasonite = SUMIFS boardM2 where component == "Masonite"
- * fcBoard    = SUMIFS boardM2 where component != "Masonite"
- * edgingM    = SUM(edgingLinearMeter) / 1000
+ * HW Cost     = SUMIF(HW Components List TOTAL COST where PRODUCT CODE = Code)
+ * HW Retail   = HW Cost × HW Mark Up
+ * FC usages   = SUMIFS / SUMIF on FC Components List (board m², edging LM)
+ * Material $  = usage × Board Range / Edging rates  OR stored Excel totals
+ * Finish (e.g. Super White BisonLam) =
+ *   (masoniteCost + boardCost + edgingCost) × FC Mark Up × Wastage + HW Retail
  *
- * Finish (Super White style):
- *   (masoniteCost + boardCost + edgingCost) × fcMarkup × wastage + hwRetail
+ * Hardware price changes do NOT change FC rows. They change HW Cost → HW Retail
+ * → finish prices (FC material portion stays constant unless Board/Edging change).
  */
 
 const hwComponentsService = require('../hw-components/hwComponents.service');
 const fcComponentsService = require('../fc-components/fcComponents.service');
 
 const DEFAULT_HW_MARKUP = 2.1;
-const DEFAULT_FC_MARKUP = 1;
-const DEFAULT_WASTAGE = 1;
+const DEFAULT_FC_MARKUP = 3.1;
+const DEFAULT_WASTAGE = 1.2;
 
 const toNumber = (value, fallback = null) => {
   if (value === '' || value === null || value === undefined) return fallback;
@@ -34,15 +34,9 @@ const roundMoney = (value) => {
 
 /**
  * @param {object} options
- * @param {string} options.productCode — Catalogue / PRODUCT CODE
- * @param {object} [options.metrics]
- * @param {number} [options.metrics.hwMarkup=2.1]
- * @param {number} [options.metrics.fcMarkup=1]
- * @param {number} [options.metrics.wastage=1]
- * @param {number} [options.metrics.edgingCostPerM]
- * @param {number} [options.metrics.masonitePricePerM2]
- * @param {number} [options.metrics.boardPricePerM2]
- * @param {boolean} [options.persist=false] — reserved; cascade writes selectively
+ * @param {string} options.productCode
+ * @param {object} [options.metrics] — catalogueMetrics / Excel constants
+ * @param {boolean} [options.persist=false]
  */
 const calculateCataloguePricing = async ({
   productCode,
@@ -57,35 +51,80 @@ const calculateCataloguePricing = async ({
   const hwMarkup = toNumber(metrics.hwMarkup, DEFAULT_HW_MARKUP);
   const fcMarkup = toNumber(metrics.fcMarkup, DEFAULT_FC_MARKUP);
   const wastage = toNumber(metrics.wastage, DEFAULT_WASTAGE);
-  const edgingCostPerM = toNumber(metrics.edgingCostPerM, 0) ?? 0;
-  const masonitePricePerM2 = toNumber(metrics.masonitePricePerM2, 0) ?? 0;
-  const boardPricePerM2 = toNumber(metrics.boardPricePerM2, 0) ?? 0;
 
   const hwCostRaw = await hwComponentsService.sumTotalCostForProduct(code);
   const fcUsage = await fcComponentsService.aggregateUsageForProduct(code);
 
-  const hwCost = roundMoney(hwCostRaw);
-  const hwRetail = roundMoney((hwCost ?? 0) * hwMarkup);
+  // If no HW line has a resolved cost yet, keep Excel-seeded metrics (do not write 0).
+  const HwComponentLine = require('../hw-components/hwComponentLine.model');
+  const costProbe = await HwComponentLine.find({
+    productCode: code,
+    deletedAt: null,
+    totalCost: { $ne: null },
+  })
+    .select('_id')
+    .limit(1)
+    .lean();
 
-  const masoniteCost = roundMoney(fcUsage.fcMasoniteUsage * masonitePricePerM2);
-  const boardCost = roundMoney(fcUsage.fcBoardUsage * boardPricePerM2);
-  const edgingCost = roundMoney(fcUsage.edgingM * edgingCostPerM);
+  const hasResolvedLineCosts = costProbe.length > 0;
+  const seededHwCost = toNumber(metrics.seededHwCost ?? metrics.hwCost, null);
+  const seededHwRetail = toNumber(metrics.seededHwRetail ?? metrics.hwRetail, null);
+
+  const hwCost = hasResolvedLineCosts
+    ? roundMoney(hwCostRaw)
+    : seededHwCost != null
+      ? roundMoney(seededHwCost)
+      : roundMoney(hwCostRaw);
+
+  const hwRetail = hasResolvedLineCosts
+    ? roundMoney((hwCost ?? 0) * hwMarkup)
+    : seededHwRetail != null
+      ? roundMoney(seededHwRetail)
+      : roundMoney((hwCost ?? 0) * hwMarkup);
+
+  // Seed stores Excel *totals* under these names (not unit rates).
+  // Prefer those so HW-price cascade keeps FC material $ stable (Excel behaviour).
+  let masoniteCost = toNumber(metrics.fcMasoniteCostPerM2, null);
+  let boardCost = toNumber(metrics.fcWhiteMelamineCostPerM2, null);
+  let edgingCost = toNumber(metrics.edgingCostPerM2, null);
+
+  const masonitePricePerM2 = toNumber(metrics.masonitePricePerM2, null);
+  const boardPricePerM2 = toNumber(metrics.boardPricePerM2, null);
+  const edgingCostPerM = toNumber(metrics.edgingCostPerM, null);
+
+  if (masoniteCost == null && masonitePricePerM2 != null) {
+    masoniteCost = roundMoney(fcUsage.fcMasoniteUsage * masonitePricePerM2);
+  }
+  if (boardCost == null && boardPricePerM2 != null) {
+    boardCost = roundMoney(fcUsage.fcBoardUsage * boardPricePerM2);
+  }
+  if (edgingCost == null && edgingCostPerM != null) {
+    edgingCost = roundMoney(fcUsage.edgingM * edgingCostPerM);
+  }
+
+  masoniteCost = roundMoney(masoniteCost ?? 0);
+  boardCost = roundMoney(boardCost ?? 0);
+  edgingCost = roundMoney(edgingCost ?? 0);
 
   const materialSubtotal =
     (masoniteCost ?? 0) + (boardCost ?? 0) + (edgingCost ?? 0);
+
+  // Super White BisonLam formula (first finish column pattern in Excel)
   const finishPriceSuperWhite = roundMoney(
     materialSubtotal * fcMarkup * wastage + (hwRetail ?? 0)
   );
 
-  const result = {
+  return {
     productCode: code,
     hwCost,
     hwMarkup,
     hwRetail,
-    fcMasoniteUsage: roundMoney(fcUsage.fcMasoniteUsage),
-    fcBoardUsage: roundMoney(fcUsage.fcBoardUsage),
+    fcMasoniteUsage: roundMoney(
+      toNumber(metrics.fcMasoniteUsage, fcUsage.fcMasoniteUsage)
+    ),
+    fcBoardUsage: roundMoney(toNumber(metrics.fcBoardUsage, fcUsage.fcBoardUsage)),
     edgingLinearMeterSum: roundMoney(fcUsage.edgingLinearMeterSum),
-    edgingM: roundMoney(fcUsage.edgingM),
+    edgingM: roundMoney(toNumber(metrics.edgingUsage, fcUsage.edgingM)),
     masoniteCost,
     boardCost,
     edgingCost,
@@ -97,8 +136,6 @@ const calculateCataloguePricing = async ({
     finishPriceSuperWhite,
     persisted: Boolean(persist),
   };
-
-  return result;
 };
 
 module.exports = {

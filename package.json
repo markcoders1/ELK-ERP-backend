@@ -11,6 +11,7 @@
     "seed:hardware": "node scripts/seedHardware.js",
     "seed:components": "node scripts/seedComponents.js",
     "seed:ncl-cascade": "node scripts/seedNclCascade.js",
+    "cascade:repair": "node scripts/repairHardwareCascade.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

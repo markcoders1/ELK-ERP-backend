@@ -207,6 +207,11 @@ const normalizeHardwareRow = (raw, headers) => {
   let pricingBasis = normalizePricingBasis(getRawField(raw, lookup, 'pricingBasis'));
   let agreedUsedAsPricingBasis = false;
 
+  // Master File has no "Pricing Basis" column — FRC Base (Agreed / Retail) is the switch.
+  if (!pricingBasis && lookup.frcBase) {
+    pricingBasis = normalizePricingBasis(getRawField(raw, lookup, 'frcBase'));
+  }
+
   // Some sheets store Agreed/Retail text in the AGREED column instead of a price.
   if (!pricingBasis && lookup.agreedPrice) {
     const agreedRaw = getRawField(raw, lookup, 'agreedPrice');
@@ -222,7 +227,7 @@ const normalizeHardwareRow = (raw, headers) => {
     infos.push({
       severity: 'INFO',
       code: 'PRICING_BASIS_DEFAULTED',
-      message: 'Pricing Basis missing — defaulted to Agreed',
+      message: 'Pricing Basis / FRC Base missing — defaulted to Agreed',
     });
   }
 

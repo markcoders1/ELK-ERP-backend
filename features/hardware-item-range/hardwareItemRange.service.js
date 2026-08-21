@@ -57,6 +57,47 @@ const upsertFromHardware = async (hardwareSafeOrLean) => {
   return doc.toSafeObject();
 };
 
+/**
+ * Upsert HIR manufacturing price from NCL Hardware Item Range (Excel displayed MNF).
+ * Used when Master SKU is not yet imported but NCL already has Manufacturing Price.
+ */
+const upsertManufacturingPrice = async ({
+  itemCode,
+  description,
+  groupCode,
+  manufacturingPrice,
+  hardwareId = null,
+}) => {
+  const code = normalizeItemCode(itemCode);
+  if (!code) {
+    throw new AppError('itemCode is required for HIR upsert', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const price =
+    manufacturingPrice === '' ||
+    manufacturingPrice === null ||
+    manufacturingPrice === undefined
+      ? null
+      : Number(manufacturingPrice);
+
+  const doc = await HardwareItemRange.findOneAndUpdate(
+    { itemCode: code },
+    {
+      $set: {
+        itemCode: code,
+        groupCode: String(groupCode || '').trim().toUpperCase(),
+        description: String(description || '').trim() || code,
+        manufacturingPrice: Number.isFinite(price) ? price : null,
+        ...(hardwareId ? { hardwareId } : {}),
+        isActive: true,
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return doc.toSafeObject();
+};
+
 const buildListFilter = (query) => {
   const filter = {};
 
@@ -126,6 +167,7 @@ const deactivateByStockCode = async (stockCode) => {
 
 module.exports = {
   upsertFromHardware,
+  upsertManufacturingPrice,
   findAll,
   findByItemCode,
   deactivateByStockCode,

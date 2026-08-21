@@ -44,7 +44,21 @@ const retFromSupplierRules = [
 const markupAndWeightRules = [
   positiveMarkupRule('mnfMarkup', 'MNF markup'),
   positiveMarkupRule('frcMarkup', 'FRC markup'),
-  positiveMarkupRule('retailMarkup', 'Retail markup'),
+  // RET Markup is only used when FRC Base / pricingBasis is Agreed.
+  // Excel Retail rows leave RET Markup blank ("-"); do not require a positive value.
+  body('retailMarkup')
+    .optional({ values: 'null' })
+    .custom((value, { req }) => {
+      if (value === '' || value === null || value === undefined) {
+        if (req.body?.pricingBasis === PRICING_BASIS.RETAIL) return true;
+        return true; // optional; service may default for Agreed
+      }
+      const number = Number(value);
+      if (!Number.isFinite(number) || number <= 0) {
+        throw new Error('Retail markup must be a positive decimal value');
+      }
+      return true;
+    }),
   body('weight')
     .optional({ values: 'null' })
     .isFloat({ min: 0 })

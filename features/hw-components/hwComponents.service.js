@@ -270,20 +270,33 @@ const recalculateCostsForHardwareItem = async (itemCode) => {
   const lines = await HwComponentLine.find({
     hardwareItem: code,
     ...notDeletedFilter,
-  });
+  })
+    .select('_id quantity')
+    .lean();
 
-  let updated = 0;
-  // eslint-disable-next-line no-restricted-syntax
-  for (const line of lines) {
-    const qty = Number(line.quantity) || 0;
-    line.costPrice = roundedCost;
-    line.totalCost = roundedCost != null ? roundMoney(qty * roundedCost) : null;
-    // eslint-disable-next-line no-await-in-loop
-    await line.save();
-    updated += 1;
+  if (!lines.length) {
+    return { itemCode: code, linesUpdated: 0, costPrice: roundedCost };
   }
 
-  return { itemCode: code, linesUpdated: updated, costPrice: roundedCost };
+  const ops = lines.map((line) => {
+    const qty = Number(line.quantity) || 0;
+    return {
+      updateOne: {
+        filter: { _id: line._id },
+        update: {
+          $set: {
+            costPrice: roundedCost,
+            totalCost:
+              roundedCost != null ? roundMoney(qty * roundedCost) : null,
+          },
+        },
+      },
+    };
+  });
+
+  await HwComponentLine.bulkWrite(ops, { ordered: false });
+
+  return { itemCode: code, linesUpdated: lines.length, costPrice: roundedCost };
 };
 
 const softDelete = async (id) => {

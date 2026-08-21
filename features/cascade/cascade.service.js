@@ -1,12 +1,18 @@
 /**
- * Excel-faithful cascade: Hardware Master → HIR → HW Components → Catalogue.
+ * Excel-proven cascade for Hardware Master *unit price* changes:
  *
- * propagateHardwareChange(stockCode):
- * 1. Load HardwareItem, compute pricing, upsert HIR manufacturingPrice = mnfPrice
- * 2. Recalc all HwComponentLine where hardwareItem === stockCode
- * 3. For each distinct productCode, if a live Component exists with
- *    componentCode === productCode, update catalogueMetrics.hwCost / hwRetail
- * 4. Return summary
+ *   Hardware Master (MNF)
+ *     → Hardware Item Range (Manufacturing Price)
+ *     → HW Components List (Cost Price / Total Cost)
+ *     → Carcasses & BIC Catalogue (HW Cost, HW Retail, finish HW term)
+ *
+ * FC Components List remains in the overall BIC flow:
+ *   - Integrity: HW CHECK-IN-FC / FC CHECK-IN-HW / Catalogue Match (product-code presence)
+ *   - Pricing: FC board m² + edging → catalogue material costs → finish material term
+ *
+ * A hardware price change does not rewrite FC rows (FC has no Master/HIR price formulas).
+ * Finish prices still move because HW Retail changes; FC material totals stay until
+ * FC / Board Range / Edging change.
  */
 
 const HardwareItem = require('../hardware/hardwareItem.model');
@@ -33,7 +39,9 @@ const liveComponentFilter = {
 };
 
 /**
- * Update catalogueMetrics.hwCost / hwRetail on the live Component (if any).
+ * Recalc catalogue HW Cost / HW Retail / finish using:
+ * - live HW line totals (always refreshed)
+ * - existing FC-derived material cost totals on catalogueMetrics (Excel FC path)
  */
 const updateCatalogueHwMetrics = async (productCode) => {
   const code = normalizeStockCode(productCode);
@@ -59,9 +67,13 @@ const updateCatalogueHwMetrics = async (productCode) => {
       hwMarkup: existingMetrics.hwMarkup ?? DEFAULT_HW_MARKUP,
       fcMarkup: existingMetrics.fcMarkup,
       wastage: existingMetrics.wastage,
-      edgingCostPerM: existingMetrics.edgingCostPerM2,
-      masonitePricePerM2: existingMetrics.fcMasoniteCostPerM2,
-      boardPricePerM2: existingMetrics.fcWhiteMelamineCostPerM2,
+      fcMasoniteUsage: existingMetrics.fcMasoniteUsage,
+      fcBoardUsage: existingMetrics.fcBoardUsage,
+      edgingUsage: existingMetrics.edgingUsage,
+      // FC material $ from Board/Edging × FC usages (seeded / prior FC path)
+      fcMasoniteCostPerM2: existingMetrics.fcMasoniteCostPerM2,
+      fcWhiteMelamineCostPerM2: existingMetrics.fcWhiteMelamineCostPerM2,
+      edgingCostPerM2: existingMetrics.edgingCostPerM2,
     },
   });
 
@@ -70,7 +82,15 @@ const updateCatalogueHwMetrics = async (productCode) => {
     hwCost: pricing.hwCost,
     hwRetail: pricing.hwRetail,
     hwMarkup: pricing.hwMarkup,
+    fcMasoniteUsage: pricing.fcMasoniteUsage ?? existingMetrics.fcMasoniteUsage,
+    fcBoardUsage: pricing.fcBoardUsage ?? existingMetrics.fcBoardUsage,
+    edgingUsage: pricing.edgingM ?? existingMetrics.edgingUsage,
   };
+
+  // Finish = FC materials × markups + HW Retail (both inputs required)
+  if (pricing.finishPriceSuperWhite != null) {
+    component.retailPrice = pricing.finishPriceSuperWhite;
+  }
 
   await component.save();
 
@@ -79,12 +99,10 @@ const updateCatalogueHwMetrics = async (productCode) => {
     updated: true,
     hwCost: pricing.hwCost,
     hwRetail: pricing.hwRetail,
+    finishPriceSuperWhite: pricing.finishPriceSuperWhite,
   };
 };
 
-/**
- * Propagate a single Hardware Master stock-code change through the cascade.
- */
 const propagateHardwareChange = async (stockCode) => {
   const code = normalizeStockCode(stockCode);
 
@@ -99,13 +117,11 @@ const propagateHardwareChange = async (stockCode) => {
 
   if (hardware) {
     const pricing = calculateHardwarePricing(hardware);
-    const safeSource = {
+    await hardwareItemRangeService.upsertFromHardware({
       ...hardware,
       id: hardware._id,
       pricingDetails: pricing,
-    };
-
-    await hardwareItemRangeService.upsertFromHardware(safeSource);
+    });
     hirUpdated = true;
   }
 
@@ -132,16 +148,9 @@ const propagateHardwareChange = async (stockCode) => {
   };
 };
 
-/**
- * Batch cascade for Excel import chunks.
- */
 const propagateHardwareChanges = async (stockCodes = []) => {
   const unique = [
-    ...new Set(
-      (stockCodes || [])
-        .map(normalizeStockCode)
-        .filter(Boolean)
-    ),
+    ...new Set((stockCodes || []).map(normalizeStockCode).filter(Boolean)),
   ];
 
   const results = [];

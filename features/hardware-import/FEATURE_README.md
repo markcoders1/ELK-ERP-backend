@@ -17,6 +17,8 @@ Enterprise Excel import for the client Hardware Master workbook.
 
 Imported rows are written **directly to the live Hardware catalogue** (Administrator migration path). They do **not** create pending change requests and do **not** appear in the Approval Queue.
 
+**Master File mapping note:** there is no separate Pricing Basis column. Excel **FRC Base** (`Agreed` / `Retail`) maps to `pricingBasis`. Retail rows use **RET from Supplier**; **RET Markup** is often blank and must stay blank (not forced to 1).
+
 Apply mode: `HARDWARE_IMPORT_APPLY_MODE = DIRECT` (future `APPROVAL` toggle reserved).
 
 ---
@@ -47,15 +49,14 @@ Upload → Parse → Normalize → Validate → Preview → Confirm
 
 ---
 
-## Confirm behaviour
-
-- Inserts live `HardwareItem` rows with `importBatchId`, `importedBy`, `importedAt`
+- Uses the **first worksheet** in the workbook by default (`sheets[0]`), unless the client passes `sheetName` / `sheetIndex`
+- Inserts **or updates** live `HardwareItem` rows with `importBatchId`, `importedBy`, `importedAt`
 - Writes one `HARDWARE_IMPORTED` audit per row (entity `HARDWARE`)
-- Skips duplicate stock codes (error report) and continues
 - Does **not** create change requests
 - Does **not** notify Managers
+- After write, cascade: HIR Manufacturing Price (MNF) → HW Components costs → Catalogue `hwCost` / `hwRetail` / finish retail (FC material inputs stay; see AD-026)
 
-Live writes reuse `hardware.service.createManyFromImport`.
+Live writes reuse `hardware.service.createManyFromImport` / `updateManyFromImport`.
 
 ---
 
@@ -69,4 +70,5 @@ Live writes reuse `hardware.service.createManyFromImport`.
 
 - SheetJS loads the workbook into memory (acceptable for 20k rows / 20MB)
 - Formula evaluation is intentionally not supported — displayed values only
+- After a full hardware import, run `npm run cascade:repair` if NCL HW/FC lines were seeded earlier and costs are still blank
 - Boards / Products / BOM import adapters not started

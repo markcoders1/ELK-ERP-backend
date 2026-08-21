@@ -614,13 +614,37 @@ const findAll = async (query, { role } = {}) => {
     });
 
     const roleAware = toRoleAwarePricing(pricing, role);
+    const metrics = item.catalogueMetrics || {};
+
+    // Prefer Excel cascade metrics (HW Components SUMIF) over section-item rollups.
+    const cascadedSummary = {
+      ...buildPricingSummary(roleAware),
+      hardwareCost: metrics.hwCost ?? roleAware.hardwareCost,
+      hwRetail: metrics.hwRetail ?? null,
+      hwMarkup: metrics.hwMarkup ?? null,
+      totalCost: metrics.hwCost ?? roleAware.totalCost,
+      retailPrice:
+        item.retailPrice ?? metrics.hwRetail ?? roleAware.retailPrice,
+    };
+
+    if (
+      cascadedSummary.retailPrice != null &&
+      cascadedSummary.totalCost != null &&
+      Number(cascadedSummary.retailPrice) !== 0
+    ) {
+      const margin =
+        Number(cascadedSummary.retailPrice) - Number(cascadedSummary.totalCost);
+      cascadedSummary.margin = Math.round(margin * 100) / 100;
+      cascadedSummary.marginPercent =
+        Math.round((margin / Number(cascadedSummary.retailPrice)) * 10000) / 100;
+    }
 
     return Component.toListObjectFromLean(item, {
       sectionCounts: counts,
       pricingSummary:
         role === ROLES.CONSULTANT
-          ? { retailPrice: roleAware.retailPrice }
-          : buildPricingSummary(roleAware),
+          ? { retailPrice: cascadedSummary.retailPrice }
+          : cascadedSummary,
     });
   });
 

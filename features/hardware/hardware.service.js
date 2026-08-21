@@ -1,6 +1,10 @@
 const HardwareItem = require('./hardwareItem.model');
 const AppError = require('../../utils/AppError');
-const { HTTP_STATUS, HARDWARE_SORT_FIELDS } = require('../../config/constants');
+const {
+  HTTP_STATUS,
+  HARDWARE_SORT_FIELDS,
+  PRICING_BASIS,
+} = require('../../config/constants');
 const { parsePagination, buildPaginationMeta } = require('../../shared/pagination');
 const { escapeRegex } = require('../../shared/escapeRegex');
 const {
@@ -22,6 +26,13 @@ const toOptionalNumber = (value) => {
   if (value === '' || value === null || value === undefined) return undefined;
   const number = Number(value);
   return Number.isNaN(number) ? undefined : number;
+};
+
+/** Excel Retail rows leave RET Markup blank — keep null; Agreed defaults to 1. */
+const resolveRetailMarkup = (rawMarkup, pricingBasis) => {
+  const parsed = toOptionalNumber(rawMarkup);
+  if (parsed !== undefined) return parsed;
+  return pricingBasis === PRICING_BASIS.RETAIL ? null : DEFAULT_MARKUP;
 };
 
 /**
@@ -136,7 +147,10 @@ const create = async (payload, userId) => {
 
   const mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
   const frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
-  const retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  const retailMarkup = resolveRetailMarkup(
+    payload.retailMarkup,
+    payload.pricingBasis
+  );
   const retFromSupplier = toOptionalNumber(payload.retFromSupplier) ?? null;
   const weight = toOptionalNumber(payload.weight) ?? 0;
   const cpt = toOptionalNumber(payload.regionalCosts?.cpt);
@@ -217,7 +231,8 @@ const update = async (id, payload, userId) => {
   }
 
   if (payload.retailMarkup !== undefined) {
-    item.retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+    const basis = payload.pricingBasis ?? item.pricingBasis;
+    item.retailMarkup = resolveRetailMarkup(payload.retailMarkup, basis);
   }
 
   if (payload.retFromSupplier !== undefined) {
@@ -300,7 +315,10 @@ const buildImportDocument = (payload, { userId, importBatchId, importedAt }) => 
   const stockCode = normalizeStockCode(payload.stockCode);
   const mnfMarkup = toOptionalNumber(payload.mnfMarkup) ?? DEFAULT_MARKUP;
   const frcMarkup = toOptionalNumber(payload.frcMarkup) ?? DEFAULT_MARKUP;
-  const retailMarkup = toOptionalNumber(payload.retailMarkup) ?? DEFAULT_MARKUP;
+  const retailMarkup = resolveRetailMarkup(
+    payload.retailMarkup,
+    payload.pricingBasis
+  );
   const retFromSupplier = toOptionalNumber(payload.retFromSupplier) ?? null;
   const weight = toOptionalNumber(payload.weight) ?? 0;
   const cpt = toOptionalNumber(payload.regionalCosts?.cpt);

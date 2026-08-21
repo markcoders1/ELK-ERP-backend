@@ -162,6 +162,23 @@ The workbook is ~48MB; the script loads only the three required sheets.
 
 ---
 
+## Full Excel reload (wipe dummy + load both workbooks)
+
+Wipes pricing/test data (not users), loads **Hardware Master File** sheet `Master File`, then runs NCL cascade (HIR, HW Components, FC Components, Carcasses & BIC Catalogue).
+
+```bash
+node scripts/seedFromExcel.js
+```
+
+Optional env:
+
+- `HW_XLSX_PATH` — Hardware Master workbook
+- `NCL_XLSX_PATH` — National Components List workbook
+
+Defaults point at the Downloads copies already used for analysis.
+
+---
+
 ## Notes
 
 - Passwords are hashed with bcrypt (12 rounds), same as the auth service.

@@ -33,3 +33,14 @@ Mirrors NCL sheet **FC Components List**:
 | DELETE | `/:id` | Admin | Soft delete |
 
 Client-supplied `boardM2` / `edgingLinearMeter` are ignored; server always recalculates.
+
+---
+
+## Role in BIC flow (AD-026)
+
+FC is **required** for Carcasses & BIC Catalogue:
+
+1. **Integrity** — Catalogue / HW “CHECK IN FC” columns are product-code presence checks against this list.
+2. **Pricing** — Catalogue finish formulas use FC board m² and edging LM (× Board Range / Edging rates) as the material term; HW Retail is added separately.
+
+Hardware Master price changes do **not** rewrite FC rows (no Master/HIR formulas on this sheet).

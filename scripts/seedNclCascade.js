@@ -45,6 +45,7 @@ const DEFAULT_NCL_PATH =
 const SHEET_HW = 'HW Components List';
 const SHEET_FC = 'FC Components List';
 const SHEET_CATALOGUE = 'Carcasses & BIC Catalogue';
+const SHEET_HIR = 'Hardware Item Range';
 
 const INSERT_CHUNK = 500;
 const CASCADE_LOG_EVERY = 100;
@@ -193,9 +194,67 @@ const loadWorkbook = (filePath) => {
 
   console.log(`Reading workbook (selected sheets only): ${filePath}`);
   return XLSX.readFile(filePath, {
-    sheets: [SHEET_HW, SHEET_FC, SHEET_CATALOGUE],
+    sheets: [SHEET_HIR, SHEET_HW, SHEET_FC, SHEET_CATALOGUE],
     cellDates: false,
   });
+};
+
+/**
+ * Seed HIR manufacturingPrice from NCL Hardware Item Range (Excel displayed values).
+ * Required so HW COST resolves even when Master SKUs are not fully imported yet.
+ */
+const seedHirFromNcl = async (ws) => {
+  const { rows, headers } = sheetToObjects(ws, 0);
+  const col = {
+    groupCode: findHeader(headers, ['Group Code', 'GROUP CODE']),
+    itemCode: findHeader(headers, ['Item Code', 'ITEM CODE']),
+    description: findHeader(headers, ['Description', 'DESCRIPTION']),
+    manufacturingPrice: findHeader(headers, [
+      'Manufacturing Price',
+      'MANUFACTURING PRICE',
+    ]),
+  };
+
+  if (!col.itemCode || !col.manufacturingPrice) {
+    throw new Error(
+      `${SHEET_HIR}: missing Item Code / Manufacturing Price columns`
+    );
+  }
+
+  const ops = [];
+  let upserted = 0;
+
+  rows.forEach((row) => {
+    const itemCode = normalizeCode(row.get(col.itemCode));
+    if (!itemCode) return;
+    const manufacturingPrice = toNumber(row.get(col.manufacturingPrice), null);
+    ops.push({
+      updateOne: {
+        filter: { itemCode },
+        update: {
+          $set: {
+            itemCode,
+            groupCode: cellStr(col.groupCode ? row.get(col.groupCode) : ''),
+            description:
+              cellStr(col.description ? row.get(col.description) : '') ||
+              itemCode,
+            manufacturingPrice,
+            isActive: true,
+          },
+        },
+        upsert: true,
+      },
+    });
+  });
+
+  for (let i = 0; i < ops.length; i += INSERT_CHUNK) {
+    const chunk = ops.slice(i, i + INSERT_CHUNK);
+    // eslint-disable-next-line no-await-in-loop
+    await HardwareItemRange.bulkWrite(chunk, { ordered: false });
+    upserted += chunk.length;
+    console.log(`  HIR from NCL: ${upserted}/${ops.length}`);
+  }
+  return upserted;
 };
 
 const buildHwDocs = (ws, costMaps) => {
@@ -488,22 +547,27 @@ const seedNclCascade = async () => {
 
   await connectDatabase();
 
-  console.log('Building cost maps from Hardware Item Range + Hardware Master…');
-  const costMaps = await buildCostMaps();
-  console.log(
-    `  HIR items: ${costMaps.hirByCode.size}, Hardware MNF: ${costMaps.hwMnfByCode.size}`
-  );
-
   const workbook = loadWorkbook(filePath);
   const hwSheet = workbook.Sheets[SHEET_HW];
   const fcSheet = workbook.Sheets[SHEET_FC];
   const catalogueSheet = workbook.Sheets[SHEET_CATALOGUE];
+  const hirSheet = workbook.Sheets[SHEET_HIR];
 
-  if (!hwSheet || !fcSheet || !catalogueSheet) {
+  if (!hwSheet || !fcSheet || !catalogueSheet || !hirSheet) {
     throw new Error(
-      `Missing required sheets. Need: ${SHEET_HW}, ${SHEET_FC}, ${SHEET_CATALOGUE}`
+      `Missing required sheets. Need: ${SHEET_HIR}, ${SHEET_HW}, ${SHEET_FC}, ${SHEET_CATALOGUE}`
     );
   }
+
+  console.log('Seeding Hardware Item Range from NCL (Manufacturing Price)…');
+  const hirCount = await seedHirFromNcl(hirSheet);
+  console.log(`  HIR upserted: ${hirCount}`);
+
+  console.log('Building cost maps from HIR + Hardware Master…');
+  const costMaps = await buildCostMaps();
+  console.log(
+    `  HIR prices: ${costMaps.hirByCode.size}, Master MNF: ${costMaps.hwMnfByCode.size}`
+  );
 
   console.log('Parsing HW Components List…');
   const hw = buildHwDocs(hwSheet, costMaps);
