@@ -109,7 +109,8 @@ const calculateCataloguePricing = async ({
   const materialSubtotal =
     (masoniteCost ?? 0) + (boardCost ?? 0) + (edgingCost ?? 0);
 
-  // Super White BisonLam formula (first finish column pattern in Excel)
+  // Super White BisonLam (first finish column in Excel):
+  // (masonite + white melamine + edging) × FC Mark Up × Wastage + HW Retail
   const finishPriceSuperWhite = roundMoney(
     materialSubtotal * fcMarkup * wastage + (hwRetail ?? 0)
   );
@@ -138,9 +139,163 @@ const calculateCataloguePricing = async ({
   };
 };
 
+const isSuperWhiteFinishName = (name) =>
+  /super\s*white/i.test(String(name || ''));
+
+/**
+ * Excel: every finish column = (finish-specific materials) + the SAME HW Retail.
+ * Hardware CPT/MNF only changes HW Retail. Material terms stay.
+ *
+ * Super White is recomputed from FC material totals (explicit Excel formula).
+ * Other finishes keep their own material term:
+ *   material = storedFinish − HW currently baked into Super White VARIANT
+ *   newFinish = material + newHwRetail
+ * Blank / 0 Excel cells (GENESIS IF false, unused finishes) are left unchanged.
+ *
+ * @param {Array<{ id: string, name: string, price: number|null }>} finishes
+ * @param {number|null} superWhiteNewPrice
+ * @param {number|null} newHwRetail
+ * @param {number|null} [fallbackPreviousHwRetail]
+ */
+const applySharedHwRetailToFinishes = ({
+  finishes = [],
+  superWhiteNewPrice,
+  newHwRetail,
+  fallbackPreviousHwRetail = null,
+} = {}) => {
+  const superWhiteMaterial =
+    superWhiteNewPrice != null && newHwRetail != null
+      ? roundMoney(superWhiteNewPrice - newHwRetail)
+      : null;
+
+  const storedSuperWhite = finishes.find((row) =>
+    isSuperWhiteFinishName(row.name)
+  );
+
+  let bakedHwRetail = null;
+  if (
+    storedSuperWhite &&
+    storedSuperWhite.price != null &&
+    Number.isFinite(Number(storedSuperWhite.price)) &&
+    superWhiteMaterial != null
+  ) {
+    bakedHwRetail = roundMoney(Number(storedSuperWhite.price) - superWhiteMaterial);
+  } else if (
+    fallbackPreviousHwRetail != null &&
+    Number.isFinite(Number(fallbackPreviousHwRetail))
+  ) {
+    bakedHwRetail = roundMoney(Number(fallbackPreviousHwRetail));
+  }
+
+  return finishes.map((row) => {
+    const current = toNumber(row.price, null);
+    if (current == null) {
+      return { ...row, skipped: true, nextPrice: null, materialPortion: null };
+    }
+    // Excel unused / IF-false finishes stay 0 — do not add HW Retail onto them.
+    if (current === 0) {
+      return { ...row, skipped: true, nextPrice: current, materialPortion: 0 };
+    }
+
+    if (isSuperWhiteFinishName(row.name) && superWhiteNewPrice != null) {
+      return {
+        ...row,
+        skipped: false,
+        nextPrice: superWhiteNewPrice,
+        materialPortion: superWhiteMaterial,
+      };
+    }
+
+    if (bakedHwRetail == null || newHwRetail == null) {
+      return { ...row, skipped: true, nextPrice: current, materialPortion: null };
+    }
+
+    const materialPortion = roundMoney(current - bakedHwRetail);
+    return {
+      ...row,
+      skipped: false,
+      nextPrice: roundMoney(materialPortion + newHwRetail),
+      materialPortion,
+    };
+  });
+};
+
+const ComponentSection = require('../component-sections/componentSection.model');
+const SectionItem = require('../section-items/sectionItem.model');
+const { SECTION_TYPES } = require('../../config/constants');
+
+/**
+ * Persist Excel HW-Retail term onto VARIANT finish rows for one catalogue product.
+ * Does not rewrite FC / Board / HW BOM lines.
+ */
+const updateVariantFinishPricesForHwRetail = async ({
+  componentId,
+  superWhiteNewPrice,
+  newHwRetail,
+  fallbackPreviousHwRetail = null,
+} = {}) => {
+  if (!componentId || newHwRetail == null) {
+    return { updated: 0 };
+  }
+
+  const section = await ComponentSection.findOne({
+    componentId,
+    sectionType: SECTION_TYPES.VARIANT,
+  }).lean();
+
+  if (!section) {
+    return { updated: 0 };
+  }
+
+  const items = await SectionItem.find({
+    sectionId: section._id,
+    sectionType: SECTION_TYPES.VARIANT,
+  }).lean();
+
+  if (!items.length) {
+    return { updated: 0 };
+  }
+
+  const applied = applySharedHwRetailToFinishes({
+    finishes: items.map((item) => ({
+      id: item._id,
+      name: item.attributes?.finishName || item.attributes?.name || '',
+      price: toNumber(item.attributes?.retailPrice, null),
+      attributes: item.attributes || {},
+    })),
+    superWhiteNewPrice,
+    newHwRetail,
+    fallbackPreviousHwRetail,
+  });
+
+  const ops = applied
+    .filter((row) => !row.skipped && row.nextPrice != null)
+    .map((row) => ({
+      updateOne: {
+        filter: { _id: row.id },
+        update: {
+          $set: {
+            'attributes.retailPrice': row.nextPrice,
+            'attributes.materialPortionExHw': row.materialPortion,
+          },
+        },
+      },
+    }));
+
+  if (!ops.length) {
+    return { updated: 0 };
+  }
+
+  await SectionItem.bulkWrite(ops, { ordered: false });
+  return { updated: ops.length };
+};
+
 module.exports = {
   DEFAULT_HW_MARKUP,
   DEFAULT_FC_MARKUP,
   DEFAULT_WASTAGE,
   calculateCataloguePricing,
+  applySharedHwRetailToFinishes,
+  updateVariantFinishPricesForHwRetail,
+  isSuperWhiteFinishName,
 };

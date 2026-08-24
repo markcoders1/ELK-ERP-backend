@@ -25,6 +25,7 @@ const hwComponentsService = require('../hw-components/hwComponents.service');
 const {
   calculateCataloguePricing,
   DEFAULT_HW_MARKUP,
+  updateVariantFinishPricesForHwRetail,
 } = require('../catalogue-pricing/cataloguePricing.service');
 const {
   COMPONENT_VERSION_STATUS,
@@ -87,12 +88,24 @@ const updateCatalogueHwMetrics = async (productCode) => {
     edgingUsage: pricing.edgingM ?? existingMetrics.edgingUsage,
   };
 
-  // Finish = FC materials × markups + HW Retail (both inputs required)
+  // Super White (Excel first finish column) on the catalogue header
   if (pricing.finishPriceSuperWhite != null) {
     component.retailPrice = pricing.finishPriceSuperWhite;
   }
 
+  const previousHwRetail =
+    existingMetrics.hwRetail != null ? Number(existingMetrics.hwRetail) : null;
+
   await component.save();
+
+  // Every Excel finish column = own materials + the same HW Retail.
+  // Hardware changes only the HW term; VARIANT rows must all move by that delta.
+  const finishes = await updateVariantFinishPricesForHwRetail({
+    componentId: component._id,
+    superWhiteNewPrice: pricing.finishPriceSuperWhite,
+    newHwRetail: pricing.hwRetail,
+    fallbackPreviousHwRetail: previousHwRetail,
+  });
 
   return {
     productCode: code,
@@ -100,6 +113,7 @@ const updateCatalogueHwMetrics = async (productCode) => {
     hwCost: pricing.hwCost,
     hwRetail: pricing.hwRetail,
     finishPriceSuperWhite: pricing.finishPriceSuperWhite,
+    finishesUpdated: finishes.updated,
   };
 };
 
