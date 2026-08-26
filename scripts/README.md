@@ -139,7 +139,17 @@ Loads the National Components List MASTER workbook into:
 - `FcComponentLine` (sheet **FC Components List**) — `boardM2` / `edgingLinearMeter` via `fcFormulas`
 - `Component` APPROVED rows (sheet **Carcasses & BIC Catalogue**, header row 5) — identity + `catalogueMetrics`, then cascade `hwCost` / `hwRetail`
 
-**Wipes only** HW/FC line collections (not Hardware Master / HIR). Components are upserted by `componentCode`. Board Range is skipped (Board model has no `pricePerM2`).
+**Wipes only** HW/FC line collections (not Hardware Master / HIR). Components are upserted by `componentCode`.
+
+### NCL boards + edging (`npm run seed:ncl-boards`)
+
+Loads **Board List_arch** (cost/m²) and **Edging Colour Range** for ASCII design quotes. Wipes `boards` and `edgingcolours` then inserts from the NCL workbook. Does not change Hardware or catalogue.
+
+### Easylife Winner SKUs (`npm run seed:easylife-items`)
+
+Loads Doors / Boards / Carcass / Hardware / Worktops Import PG1 (or first non-zero PG) into `easylifeitems`. Used only by ASCII quote for leftover Winner codes. Does not change Hardware Master or BIC cascade.
+
+---
 
 ### Command
 

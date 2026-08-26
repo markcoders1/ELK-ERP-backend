@@ -51,6 +51,17 @@ const boardSchema = new mongoose.Schema(
       type: Number,
       min: 0,
     },
+    /** NCL Board List_arch "Cost per square meter" — source cost, not Winner retail. */
+    costPerM2: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    ekoomsColourId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -95,6 +106,8 @@ boardSchema.statics.toListObjectFromLean = function toListObjectFromLean(item) {
     height: item.height,
     width: item.width,
     thickness: item.thickness,
+    costPerM2: item.costPerM2 ?? null,
+    ekoomsColourId: item.ekoomColourId || '',
     isActive: item.isActive,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
@@ -114,6 +127,8 @@ boardSchema.methods.toSafeObject = function toSafeObject() {
     height: this.height,
     width: this.width,
     thickness: this.thickness,
+    costPerM2: this.costPerM2 ?? null,
+    ekoomsColourId: this.ekoomColourId || '',
     isActive: this.isActive,
     deletedAt: this.deletedAt,
     createdBy: this.createdBy,

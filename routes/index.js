@@ -10,6 +10,7 @@ const boardsRoutes = require('../features/boards/boards.routes');
 const componentsRoutes = require('../features/components/component.routes');
 const componentImportRoutes = require('../features/component-import/import.routes');
 const usersRoutes = require('../features/users/users.routes');
+const asciiQuoteRoutes = require('../features/ascii-quote/asciiQuote.routes');
 
 const router = express.Router();
 
@@ -33,5 +34,6 @@ router.use('/boards', boardsRoutes);
 router.use('/components', componentsRoutes);
 router.use('/component-import', componentImportRoutes);
 router.use('/users', usersRoutes);
+router.use('/ascii-quote', asciiQuoteRoutes);
 
 module.exports = router;
