@@ -60,6 +60,29 @@ Prefer `npm run seed:users` for full role coverage.
 
 ---
 
+## Seed Winner Desktop Connector
+
+Creates a connector identity for the Windows desktop uploader. Prints a one-time token.
+
+```bash
+npm run seed:connector
+```
+
+Optional `.env` overrides:
+
+- `SEED_CONNECTOR_ID`
+- `SEED_CONNECTOR_NAME`
+- `SEED_CONNECTOR_TOKEN`
+
+Configure the desktop app with:
+
+- API base: `https://anton.markcoders.com/ELK-ERP-backend/api`
+- Import: `POST /integrations/winner/import`
+
+See `server/features/winner-connector/FEATURE_README.md`.
+
+---
+
 ## Seed hardware (development only)
 
 Populates the Hardware Master File collection with representative SKUs so developers can exercise list, search, pagination, and upcoming UI slices.
