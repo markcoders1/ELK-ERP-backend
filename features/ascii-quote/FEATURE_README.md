@@ -18,7 +18,7 @@ ASCII totals are Winner library prices for one design office/city. ELK prices co
 ## API
 
 `POST /api/ascii-quote/quote`  
-Authenticated. Multipart field `file` (.txt / .asc / .ascii, max 8MB).
+Authenticated. Multipart field `file` (.txt / .asc / .ascii / .e01, max 8MB).
 
 ---
 

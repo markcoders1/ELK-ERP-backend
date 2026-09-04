@@ -22,7 +22,7 @@ const upload = multer({
     if (!allowedName(file.originalname)) {
       cb(
         new AppError(
-          'Upload a Winner ASCII file (.txt, .asc, or .ascii)',
+          'Upload a Winner ASCII file (.txt, .asc, .ascii, or .e01)',
           HTTP_STATUS.BAD_REQUEST
         )
       );

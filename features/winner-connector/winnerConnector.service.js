@@ -30,7 +30,7 @@ const assertAllowedFile = (fileName, fileSize) => {
   const ext = getExtension(fileName);
   if (!WINNER_CONNECTOR_ALLOWED_EXTENSIONS.includes(ext)) {
     throw new AppError(
-      'Upload a Winner ASCII file (.txt, .asc, or .ascii)',
+          'Upload a Winner ASCII file (.txt, .asc, .ascii, or .e01)',
       HTTP_STATUS.BAD_REQUEST
     );
   }

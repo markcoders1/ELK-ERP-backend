@@ -9,7 +9,7 @@ const MAX_ASCII_BYTES = 8 * 1024 * 1024;
 
 const allowedName = (filename = '') => {
   const lower = String(filename).toLowerCase();
-  return ['.txt', '.asc', '.ascii'].some((ext) => lower.endsWith(ext));
+  return ['.txt', '.asc', '.ascii', '.e01'].some((ext) => lower.endsWith(ext));
 };
 
 const upload = multer({
@@ -19,7 +19,7 @@ const upload = multer({
     if (!allowedName(file.originalname)) {
       cb(
         new AppError(
-          'Upload a Winner ASCII file (.txt, .asc, or .ascii)',
+          'Upload a Winner ASCII file (.txt, .asc, .ascii, or .e01)',
           HTTP_STATUS.BAD_REQUEST
         )
       );

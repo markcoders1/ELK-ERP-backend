@@ -300,7 +300,7 @@ const WINNER_IMPORT_STATUS = {
 
 const ALL_WINNER_IMPORT_STATUSES = Object.values(WINNER_IMPORT_STATUS);
 
-const WINNER_CONNECTOR_ALLOWED_EXTENSIONS = ['.txt', '.asc', '.ascii'];
+const WINNER_CONNECTOR_ALLOWED_EXTENSIONS = ['.txt', '.asc', '.ascii', '.e01'];
 const WINNER_CONNECTOR_MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 module.exports = {
