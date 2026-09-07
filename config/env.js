@@ -8,6 +8,17 @@ const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   cookieName: process.env.COOKIE_NAME || 'elk_erp_token',
+  /** Public health URL for Render keep-alive, e.g. https://your-app.onrender.com/api/health */
+  keepAliveUrl: process.env.KEEP_ALIVE_URL || '',
+  /** Render sets this automatically on their platform */
+  renderExternalUrl: process.env.RENDER_EXTERNAL_URL || '',
+  keepAliveIntervalMs: Number(process.env.KEEP_ALIVE_INTERVAL_MS) || 10 * 60 * 1000,
+  keepAliveEnabled:
+    process.env.KEEP_ALIVE_ENABLED === 'true'
+      ? true
+      : process.env.KEEP_ALIVE_ENABLED === 'false'
+        ? false
+        : undefined,
 };
 
 if (!env.jwtSecret) {
