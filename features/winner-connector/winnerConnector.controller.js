@@ -105,10 +105,26 @@ const downloadAscii = asyncHandler(async (req, res) => {
   return res.status(HTTP_STATUS.OK).send(file.buffer);
 });
 
+const createDevice = asyncHandler(async (req, res) => {
+  const data = await winnerConnectorService.createConnectorDevice({
+    name: req.body?.name,
+    notes: req.body?.notes
+      ? String(req.body.notes)
+      : `Created by ${req.user?.email || req.user?.name || 'admin'} via Winner Imports`,
+  });
+
+  return sendApiResponse(res, {
+    message: 'Winner connector device created. Copy the token now — it will not be shown again.',
+    data,
+    statusCode: HTTP_STATUS.CREATED,
+  });
+});
+
 module.exports = {
   uploadMiddleware,
   importWinnerAscii,
   listImports,
   getImport,
   downloadAscii,
+  createDevice,
 };

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const path = require('path');
+const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 const WinnerImport = require('./winnerImport.model');
 const Connector = require('./connector.model');
@@ -65,7 +66,7 @@ const verifySha256 = (buffer, claimedSha256) => {
 
 const mongooseIsValid = (id) => mongoose.Types.ObjectId.isValid(id);
 
-const toListItem = (doc) => ({
+const toListItem = (doc, connectorNameById = {}) => ({
   id: doc._id.toString(),
   importId: doc._id.toString(),
   fileName: doc.fileName,
@@ -76,6 +77,13 @@ const toListItem = (doc) => ({
   city: doc.city || doc.quoteSummary?.city || '',
   status: doc.status,
   connectorId: doc.connectorId,
+  connectorName:
+    doc.connectorName ||
+    connectorNameById[doc.connectorId] ||
+    (doc.connectorRef && typeof doc.connectorRef === 'object'
+      ? doc.connectorRef.name
+      : '') ||
+    '',
   quotedRetail: doc.quoteSummary?.quotedRetail ?? null,
   matchedCount: doc.quoteSummary?.matchedCount ?? null,
   unmatchedCount: doc.quoteSummary?.unmatchedCount ?? null,
@@ -84,6 +92,17 @@ const toListItem = (doc) => ({
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt,
 });
+
+const loadConnectorNames = async (connectorIds = []) => {
+  const ids = [...new Set(connectorIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!ids.length) return {};
+
+  const connectors = await Connector.find({ connectorId: { $in: ids } })
+    .select('connectorId name')
+    .lean();
+
+  return Object.fromEntries(connectors.map((c) => [c.connectorId, c.name || '']));
+};
 
 /**
  * Accept a connector upload with content-based idempotency (connectorId + sha256).
@@ -222,7 +241,15 @@ const listImports = async (query = {}) => {
   const search = String(query.search || '').trim();
   if (search) {
     const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    filter.$or = [{ fileName: rx }, { jobName: rx }, { city: rx }, { connectorId: rx }];
+    const namedConnectors = await Connector.find({ name: rx }).select('connectorId').lean();
+    const namedIds = namedConnectors.map((c) => c.connectorId);
+    filter.$or = [
+      { fileName: rx },
+      { jobName: rx },
+      { city: rx },
+      { connectorId: rx },
+      ...(namedIds.length ? [{ connectorId: { $in: namedIds } }] : []),
+    ];
   }
 
   if (query.connectorId) {
@@ -243,8 +270,10 @@ const listImports = async (query = {}) => {
       .lean(),
   ]);
 
+  const connectorNameById = await loadConnectorNames(rows.map((row) => row.connectorId));
+
   return {
-    items: rows.map(toListItem),
+    items: rows.map((row) => toListItem(row, connectorNameById)),
     pagination: buildPaginationMeta({ page, limit, total }),
   };
 };
@@ -259,8 +288,10 @@ const getImportById = async (id) => {
     throw new AppError('Winner import not found', HTTP_STATUS.NOT_FOUND);
   }
 
+  const connectorNameById = await loadConnectorNames([doc.connectorId]);
+
   return {
-    ...toListItem(doc),
+    ...toListItem(doc, connectorNameById),
     connectorVersion: doc.connectorVersion || '',
     storedFilePath: doc.storedFilePath || null,
     hasAsciiFile: Boolean(doc.storedFilePath),
@@ -303,11 +334,76 @@ const getAsciiFileForDownload = async (id) => {
   };
 };
 
+/**
+ * Public API base the desktop connector should use (no trailing slash).
+ * From WINNER_CONNECTOR_API_BASE — never hardcode production hosts in repo.
+ */
+const getConnectorApiBaseUrl = () =>
+  String(process.env.WINNER_CONNECTOR_API_BASE || '')
+    .trim()
+    .replace(/\/+$/, '');
+
+/**
+ * Create a new desktop connector identity. Plain token returned once.
+ */
+const createConnectorDevice = async ({
+  name,
+  connectorId: requestedId,
+  token: providedToken,
+  notes = '',
+} = {}) => {
+  const trimmedName = String(name || '').trim();
+  if (!trimmedName) {
+    throw new AppError('Assignee / PC name is required', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (trimmedName.length > 120) {
+    throw new AppError('Name must be 120 characters or fewer', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  let connectorId = String(requestedId || '').trim();
+  if (!connectorId) {
+    connectorId = `conn_${crypto.randomBytes(8).toString('hex')}`;
+  }
+
+  if (!/^[\w.-]{4,64}$/.test(connectorId)) {
+    throw new AppError(
+      'connectorId must be 4–64 characters (letters, numbers, _ . -)',
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+
+  const existing = await Connector.findOne({ connectorId }).lean();
+  if (existing) {
+    throw new AppError('A connector with this id already exists', HTTP_STATUS.CONFLICT);
+  }
+
+  const token = String(providedToken || '').trim() || crypto.randomBytes(32).toString('hex');
+  const tokenHash = await bcrypt.hash(token, 12);
+
+  await Connector.create({
+    connectorId,
+    name: trimmedName,
+    tokenHash,
+    isActive: true,
+    notes: String(notes || '').trim() || `Created for ${trimmedName}`,
+  });
+
+  return {
+    name: trimmedName,
+    connectorId,
+    connectorToken: token,
+    apiBaseUrl: getConnectorApiBaseUrl() || null,
+  };
+};
+
 module.exports = {
   importWinnerFile,
   listImports,
   getImportById,
   getAsciiFileForDownload,
+  createConnectorDevice,
+  getConnectorApiBaseUrl,
   assertAllowedFile,
   verifySha256,
   getExtension,
