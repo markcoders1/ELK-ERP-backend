@@ -62,7 +62,12 @@ Prefer `npm run seed:users` for full role coverage.
 
 ## Seed Winner Desktop Connector
 
-Creates a connector identity for the Windows desktop uploader. Prints a one-time token.
+Optional CLI alternative to **Winner Imports → Add New Device** (Administrator).
+
+Creates a connector identity for one Windows PC. Prints a one-time token.
+
+When run in a terminal it prompts for an **assignee / PC name**.  
+Non-interactive / CI: set env vars.
 
 ```bash
 npm run seed:connector
@@ -70,14 +75,14 @@ npm run seed:connector
 
 Optional `.env` overrides:
 
+- `WINNER_CONNECTOR_API_BASE` (API base shown after create, e.g. `https://your-backend/api`)
 - `SEED_CONNECTOR_ID`
-- `SEED_CONNECTOR_NAME`
+- `SEED_CONNECTOR_NAME` (e.g. `Showroom PC - Fatima`)
 - `SEED_CONNECTOR_TOKEN`
 
-Configure the desktop app with:
+Re-run with the same `SEED_CONNECTOR_ID` and a new `SEED_CONNECTOR_NAME` to rename without rotating the token.
 
-- API base: `https://anton.markcoders.com/ELK-ERP-backend/api`
-- Import: `POST /integrations/winner/import`
+Configure the desktop app with the printed `connectorId`, `connectorToken`, and `apiBaseUrl`.
 
 See `server/features/winner-connector/FEATURE_README.md`.
 

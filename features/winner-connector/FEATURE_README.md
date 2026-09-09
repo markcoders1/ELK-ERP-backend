@@ -23,8 +23,10 @@ After accept, each file becomes a **Winner Import** visible under **Pricing → 
 ## Production API base
 
 ```text
-https://anton.markcoders.com/ELK-ERP-backend/api
+https://your-backend-host/api
 ```
+
+Set via server env `WINNER_CONNECTOR_API_BASE` (no hardcoded production host in repo).
 
 ### Connector upload
 
@@ -46,9 +48,22 @@ GET /winner-imports/:id/ascii
 ## Auth
 
 **Connector:** `Authorization: Bearer <connectorToken>` + multipart `connectorId`.  
-Tokens stored hashed (`bcrypt`). Seed: `npm run seed:connector`.
+Tokens stored hashed (`bcrypt`).  
 
-**Web list/detail:** normal `authenticate` cookie JWT (same as rest of ERP).
+Create devices from **Winner Imports → Add New Device** (Administrator), or optionally `npm run seed:connector`.  
+Set `WINNER_CONNECTOR_API_BASE` in server env (e.g. `https://your-backend/api`) so the UI/seed can show the API base to copy.
+
+**Web list/detail:** normal `authenticate` cookie JWT (same as rest of ERP). List includes `connectorId` + `connectorName`.
+
+### Admin create device
+
+```text
+POST /winner-connectors
+Authorization: cookie JWT (Administrator)
+Body: { "name": "Showroom PC - Fatima" }
+```
+
+Response includes one-time `connectorToken` (never stored in plain text).
 
 ---
 
