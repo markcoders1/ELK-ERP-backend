@@ -6,13 +6,20 @@ const cookieParser = require('cookie-parser');
 const env = require('./config/env');
 const apiRoutes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
+const { isAllowedCorsOrigin } = require('./features/hardware-excel-sync/excelSync.cors');
 
 const app = express();
 
 app.use(helmet());
+/**
+ * CORS: web client + Office Scripts hosts (Excel Sync uses Bearer, not cookies).
+ * Office Scripts runtime Origin is not a fixed single value — see FEATURE_README.
+ */
 app.use(
   cors({
-    origin: env.clientUrl,
+    origin: (origin, callback) => {
+      callback(null, isAllowedCorsOrigin(origin));
+    },
     credentials: true,
   })
 );
