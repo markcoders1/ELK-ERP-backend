@@ -303,6 +303,24 @@ const ALL_WINNER_IMPORT_STATUSES = Object.values(WINNER_IMPORT_STATUS);
 const WINNER_CONNECTOR_ALLOWED_EXTENSIONS = ['.txt', '.asc', '.ascii', '.e01'];
 const WINNER_CONNECTOR_MAX_FILE_BYTES = 8 * 1024 * 1024;
 
+/**
+ * Hardware Excel Sync (Office Script → pending Change Requests).
+ * Row-level outcomes for partial-success batches.
+ */
+const EXCEL_SYNC_ROW_STATUS = {
+  PENDING: 'PENDING',
+  NO_CHANGE: 'NO_CHANGE',
+  INVALID: 'INVALID',
+  PENDING_CONFLICT: 'PENDING_CONFLICT',
+  UNKNOWN_STOCK_CODE: 'UNKNOWN_STOCK_CODE',
+  FAILED: 'FAILED',
+};
+
+const ALL_EXCEL_SYNC_ROW_STATUSES = Object.values(EXCEL_SYNC_ROW_STATUS);
+
+/** Default max rows per Excel Sync request (Office Script sends changed rows only). */
+const EXCEL_SYNC_DEFAULT_MAX_ROWS = 100;
+
 module.exports = {
   ROLES,
   ALL_ROLES,
@@ -362,4 +380,7 @@ module.exports = {
   ALL_WINNER_IMPORT_STATUSES,
   WINNER_CONNECTOR_ALLOWED_EXTENSIONS,
   WINNER_CONNECTOR_MAX_FILE_BYTES,
+  EXCEL_SYNC_ROW_STATUS,
+  ALL_EXCEL_SYNC_ROW_STATUSES,
+  EXCEL_SYNC_DEFAULT_MAX_ROWS,
 };
