@@ -10,7 +10,7 @@ const COLUMN_ALIASES = {
   stockCode: ['STOCK CODE', 'STOCKCODE', 'STOCK', 'CODE'],
   supplierName: ['SUPPLIER', 'SUPPLIER NAME', 'SUPPLIERNAME'],
   supplierCode: ['SUPPLIER CODE', 'SUPPLIERCODE'],
-  description: ['DESCRIPTION', 'DESC'],
+  description: ['DESCRIPTION', 'DESC', 'PRODUCT DESCRIPTION', 'PRODUCTDESCRIPTION', 'ITEM DESCRIPTION'],
   cpt: ['CPT'],
   jhb: ['JHB'],
   var: ['VAR'],

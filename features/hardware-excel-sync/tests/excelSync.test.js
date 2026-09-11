@@ -208,6 +208,44 @@ describe('excelSync.service processRow / submitSync (mocked)', () => {
     };
   };
 
+  it('hydrates missing description from live hardware and still submits', async () => {
+    let submitCalls = 0;
+    const result = await processRow(
+      {
+        excelRowNumber: 2,
+        stockCode: 'ACC0001-CO1',
+        source: {
+          ...agreedSource,
+          description: null,
+        },
+        verification: matchingVerification(),
+      },
+      user,
+      { sheetName: 'Master File' },
+      {
+        findHardwareByStockCode: async () => ({
+          _id: 'hw1',
+          stockCode: 'ACC0001-CO1',
+          groupCode: 'ACC',
+          description: 'AIRVENT ROUND 40mm WHITE LOOSE',
+          pricingBasis: 'Agreed',
+          regionalCosts: { cpt: 1.87, jhb: 1.2 },
+          mnfMarkup: 1.114,
+          frcMarkup: 1.52,
+          retailMarkup: 1.54,
+        }),
+        submitUpdate: async (_id, payload) => {
+          submitCalls += 1;
+          assert.equal(payload.description, 'AIRVENT ROUND 40mm WHITE LOOSE');
+          return { id: 'cr1', changedFields: ['regionalCosts.cpt'] };
+        },
+      }
+    );
+
+    assert.equal(result.status, 'PENDING');
+    assert.equal(submitCalls, 1);
+  });
+
   it('creates PENDING via submitUpdate and does not call a direct hardware update', async () => {
     let submitCalls = 0;
     const result = await processRow(
