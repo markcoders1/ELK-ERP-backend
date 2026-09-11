@@ -90,6 +90,24 @@ describe('excelSync.verification (Agreed sample)', () => {
     assert.equal(roundMoney(expected.mnfPrice), roundMoney(1.87 * 1.114));
   });
 
+  it('accepts Excel margin fractions (0.35) as 35%', () => {
+    const source = {
+      cpt: 8.17,
+      jhb: 8.03,
+      pricingBasis: PRICING_BASIS.AGREED,
+      mnfMarkup: 1.114,
+      frcMarkup: 1.5206,
+      retailMarkup: 1.54,
+      retFromSupplier: null,
+    };
+    const result = verifyExcelCalculations(source, {
+      marginFranRet: 0.35,
+      marginHwMnf: 0.1,
+      marginHwFran: 0.34,
+    });
+    assert.equal(result.ok, true);
+  });
+
   it('accepts Excel 2-decimal displayed prices within tolerance', () => {
     const source = {
       cpt: 8.17,
