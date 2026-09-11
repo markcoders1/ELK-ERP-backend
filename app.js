@@ -10,10 +10,35 @@ const { isAllowedCorsOrigin } = require('./features/hardware-excel-sync/excelSyn
 
 const app = express();
 
-app.use(helmet());
+app.use(
+  helmet({
+    // Required for Excel Online / Office Scripts cross-origin fetch to this API.
+    // Default helmet CORP "same-origin" causes browser "Failed to fetch".
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
 /**
- * CORS: web client + Office Scripts hosts (Excel Sync uses Bearer, not cookies).
- * Office Scripts runtime Origin is not a fixed single value — see FEATURE_README.
+ * Office Scripts docs: ACAO must often be `*` because the runtime Origin can change.
+ * Apply only to Excel Sync (Bearer auth, no cookies) — do not open cookie-auth routes.
+ * @see https://learn.microsoft.com/en-us/office/dev/scripts/develop/external-calls
+ */
+app.use('/api/hardware-excel-sync', (req, res, next) => {
+  cors({
+    origin: '*',
+    methods: ['POST', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Request-Id',
+      'Idempotency-Key',
+    ],
+    credentials: false,
+  })(req, res, next);
+});
+
+/**
+ * CORS: web client + Office Scripts hosts for the rest of the API.
  */
 app.use(
   cors({

@@ -96,14 +96,13 @@ Do **not** put a normal user JWT in the Office Script.
 
 ## CORS
 
-Office Scripts `fetch` Origin is **not** a single fixed value. The API allows:
+Office Scripts `fetch` is picky:
 
-- `CLIENT_URL` (web app)
-- Hosts under `*.officescripts.microsoft.com` and `*.officeapps.live.com`
-- Requests with no `Origin`
-- Any origins listed in `HARDWARE_EXCEL_SYNC_CORS_ORIGINS`
+1. Helmet must **not** use `Cross-Origin-Resource-Policy: same-origin` (we set `cross-origin`).
+2. For `/api/hardware-excel-sync` only, responses use `Access-Control-Allow-Origin: *` (Microsoft docs: specific origins can break because the Office Scripts runtime Origin can change).
+3. Remaining API routes still use `CLIENT_URL` + Microsoft Excel hosts + `HARDWARE_EXCEL_SYNC_CORS_ORIGINS`.
 
-Use **HTTPS** in production.
+Use **HTTPS** in production. After changing CORS/Helmet, **redeploy** the Render service.
 
 ---
 
