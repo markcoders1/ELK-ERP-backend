@@ -4,8 +4,14 @@ const {
 
 /**
  * Compare Excel verification values against canonical hardwarePricing.service.
- * Money: 4 dp. Margins: 2 dp. Omitted verification fields are skipped.
+ *
+ * Excel Master File cells are usually displayed / exported at ~2 dp, while the
+ * canonical engine stores money at 4 dp. Exact equality therefore rejects
+ * legitimate rows. Use absolute tolerances instead.
  */
+
+const MONEY_TOLERANCE = 0.01;
+const PERCENT_TOLERANCE = 0.05;
 
 const roundMoney = (value) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
@@ -70,13 +76,21 @@ const pickExcelValue = (verification, field) => {
 };
 
 const valuesMatch = (excelRaw, expectedRaw, kind) => {
-  const round = kind === 'percent' ? roundPercent : roundMoney;
-  const excel = excelRaw === '' || excelRaw === undefined ? null : round(excelRaw);
-  const expected = expectedRaw === '' || expectedRaw === undefined ? null : round(expectedRaw);
+  const excelNum =
+    excelRaw === '' || excelRaw === undefined || excelRaw === null
+      ? null
+      : Number(excelRaw);
+  const expectedNum =
+    expectedRaw === '' || expectedRaw === undefined || expectedRaw === null
+      ? null
+      : Number(expectedRaw);
 
-  if (excel === null && expected === null) return true;
-  if (excel === null || expected === null) return false;
-  return excel === expected;
+  if (excelNum === null && expectedNum === null) return true;
+  if (excelNum === null || expectedNum === null) return false;
+  if (!Number.isFinite(excelNum) || !Number.isFinite(expectedNum)) return false;
+
+  const tolerance = kind === 'percent' ? PERCENT_TOLERANCE : MONEY_TOLERANCE;
+  return Math.abs(excelNum - expectedNum) <= tolerance;
 };
 
 /**
@@ -99,7 +113,7 @@ const verifyExcelCalculations = (sourceInput, verification = {}) => {
       mismatches.push({
         code: 'VERIFICATION_FAILED',
         field: field.excelKey,
-        excelValue: excelRaw === '' ? null : round(excelRaw),
+        excelValue: round(excelRaw),
         expectedValue: expectedRaw == null ? null : round(expectedRaw),
         message: 'Excel calculated value does not match canonical pricing calculation',
       });
@@ -116,6 +130,8 @@ const verifyExcelCalculations = (sourceInput, verification = {}) => {
 module.exports = {
   verifyExcelCalculations,
   VERIFICATION_FIELD_MAP,
+  MONEY_TOLERANCE,
+  PERCENT_TOLERANCE,
   roundMoney,
   roundPercent,
   valuesMatch,

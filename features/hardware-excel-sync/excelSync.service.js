@@ -359,6 +359,7 @@ const submitSync = async ({ body, user, requestId = null, deps } = {}) => {
       stockCode: result.stockCode,
       status: result.status,
       excelRowNumber: result.excelRowNumber,
+      errors: result.errors || undefined,
     });
   }
 

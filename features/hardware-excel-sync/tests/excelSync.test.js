@@ -90,6 +90,30 @@ describe('excelSync.verification (Agreed sample)', () => {
     assert.equal(roundMoney(expected.mnfPrice), roundMoney(1.87 * 1.114));
   });
 
+  it('accepts Excel 2-decimal displayed prices within tolerance', () => {
+    const source = {
+      cpt: 8.17,
+      jhb: 8.03,
+      pricingBasis: PRICING_BASIS.AGREED,
+      mnfMarkup: 1.114,
+      frcMarkup: 1.5206,
+      retailMarkup: 1.54,
+      retFromSupplier: null,
+    };
+    const result = verifyExcelCalculations(source, {
+      var: -0.14,
+      agreed: 8.17,
+      mnfPrice: 9.1,
+      frcPrice: 12.42,
+      retPriceExclVat: 19.13,
+      retPriceInclVat: 22.0,
+      marginFranRet: 35.06,
+      marginHwMnf: 10.23,
+      marginHwFran: 34.24,
+    });
+    assert.equal(result.ok, true);
+  });
+
   it('rejects mismatched mnfPrice', () => {
     const expected = calculateHardwarePricing(source);
     const result = verifyExcelCalculations(source, {
