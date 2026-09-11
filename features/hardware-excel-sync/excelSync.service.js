@@ -17,6 +17,78 @@ const normalizeStockCode = (stockCode) =>
 
 const notDeletedFilter = { deletedAt: null };
 
+const isBlank = (value) =>
+  value === null || value === undefined || String(value).trim() === '';
+
+/**
+ * Excel Sync is update-only. Missing identity/text fields are filled from the
+ * live HardwareItem so a header-mapping miss (e.g. DESCRIPTION) does not
+ * block an otherwise valid CPT/markup change. Explicit Excel values win.
+ */
+const hydrateSourceFromExisting = (source = {}, existing = {}) => {
+  const regional = source.regionalCosts || {};
+  const existingRegional = existing.regionalCosts || {};
+
+  const pick = (excelValue, fallback) =>
+    isBlank(excelValue) ? fallback ?? null : excelValue;
+
+  return {
+    ...source,
+    groupCode: pick(source.groupCode, existing.groupCode),
+    description: pick(source.description, existing.description),
+    supplierName:
+      source.supplierName !== undefined
+        ? source.supplierName
+        : existing.supplierName || '',
+    supplierCode:
+      source.supplierCode !== undefined
+        ? source.supplierCode
+        : existing.supplierCode || '',
+    cpt: source.cpt !== undefined ? source.cpt : regional.cpt ?? existingRegional.cpt ?? null,
+    jhb: source.jhb !== undefined ? source.jhb : regional.jhb ?? existingRegional.jhb ?? null,
+    regionalCosts: {
+      cpt:
+        source.cpt !== undefined
+          ? source.cpt
+          : regional.cpt !== undefined
+            ? regional.cpt
+            : existingRegional.cpt ?? null,
+      jhb:
+        source.jhb !== undefined
+          ? source.jhb
+          : regional.jhb !== undefined
+            ? regional.jhb
+            : existingRegional.jhb ?? null,
+    },
+    pricingBasis: pick(source.pricingBasis, existing.pricingBasis),
+    mnfMarkup:
+      source.mnfMarkup !== undefined && source.mnfMarkup !== null
+        ? source.mnfMarkup
+        : existing.mnfMarkup,
+    frcMarkup:
+      source.frcMarkup !== undefined && source.frcMarkup !== null
+        ? source.frcMarkup
+        : existing.frcMarkup,
+    retailMarkup:
+      source.retailMarkup !== undefined
+        ? source.retailMarkup
+        : existing.retailMarkup ?? null,
+    retFromSupplier:
+      source.retFromSupplier !== undefined
+        ? source.retFromSupplier
+        : existing.retFromSupplier ?? null,
+    weight: source.weight !== undefined ? source.weight : existing.weight ?? null,
+    isImport:
+      source.isImport !== undefined && source.isImport !== null
+        ? source.isImport
+        : existing.isImport ?? false,
+    isActive:
+      source.isActive !== undefined && source.isActive !== null
+        ? source.isActive
+        : existing.isActive !== false,
+  };
+};
+
 /**
  * Strict source validation mirroring hardware.validator update semantics.
  * @returns {Array<{code:string,message:string,field?:string}>}
@@ -150,9 +222,7 @@ const processRow = async (
   { sheetName },
   deps = {
     findHardwareByStockCode: (stockCode) =>
-      HardwareItem.findOne({ stockCode, ...notDeletedFilter })
-        .select('_id stockCode')
-        .lean(),
+      HardwareItem.findOne({ stockCode, ...notDeletedFilter }).lean(),
     submitUpdate: (...args) => hardwareApprovalsService.submitUpdate(...args),
   }
 ) => {
@@ -190,7 +260,8 @@ const processRow = async (
     };
   }
 
-  const payload = buildSubmitUpdatePayload(row.source || {}, {
+  const hydratedSource = hydrateSourceFromExisting(row.source || {}, item);
+  const payload = buildSubmitUpdatePayload(hydratedSource, {
     excelRowNumber,
     sheetName,
   });
@@ -381,5 +452,6 @@ module.exports = {
   submitSync,
   processRow,
   validateSourcePayload,
+  hydrateSourceFromExisting,
   normalizeStockCode,
 };
