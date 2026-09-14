@@ -54,6 +54,19 @@ const approve = asyncHandler(async (req, res) => {
   });
 });
 
+const approveAll = asyncHandler(async (req, res) => {
+  const summary = await hardwareApprovalsService.approveAll(req.user);
+
+  return sendResponse(res, {
+    message:
+      summary.total === 0
+        ? 'No pending change requests to approve'
+        : `Approved ${summary.approved} of ${summary.total} pending change request(s)`,
+    data: { summary },
+    statusCode: HTTP_STATUS.OK,
+  });
+});
+
 const reject = asyncHandler(async (req, res) => {
   const item = await hardwareApprovalsService.reject(req.params.id, req.body, req.user);
 
@@ -112,6 +125,7 @@ module.exports = {
   submitCreate,
   submitUpdate,
   approve,
+  approveAll,
   reject,
   dashboardSummary,
   auditTrail,
