@@ -47,6 +47,12 @@ router.get(
   hardwareApprovalsController.list
 );
 
+router.post(
+  '/approve-all',
+  authorizeRoles(...APPROVAL_REVIEW_ROLES),
+  hardwareApprovalsController.approveAll
+);
+
 router.get(
   '/:id',
   validate(idParamRules),

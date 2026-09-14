@@ -471,6 +471,44 @@ const approve = async (id, user) => {
   return findById(request._id);
 };
 
+/**
+ * Approve every PENDING change request by calling the same `approve()` path
+ * sequentially (catalogue write + cascade + audit + notify per item).
+ */
+const approveAll = async (user) => {
+  const pending = await ChangeRequest.find({
+    status: CHANGE_REQUEST_STATUS.PENDING,
+  })
+    .sort({ submittedAt: 1 })
+    .select('_id stockCode componentCode entityType')
+    .lean();
+
+  const summary = {
+    total: pending.length,
+    approved: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  for (const row of pending) {
+    const id = row._id.toString();
+    try {
+      await approve(id, user);
+      summary.approved += 1;
+    } catch (error) {
+      summary.failed += 1;
+      summary.errors.push({
+        id,
+        stockCode: row.stockCode || row.componentCode || null,
+        entityType: row.entityType || null,
+        message: error.message || 'Approve failed',
+      });
+    }
+  }
+
+  return summary;
+};
+
 const reject = async (id, { reason }, user) => {
   const trimmedReason = reason?.trim?.() || '';
   if (!trimmedReason) {
@@ -717,6 +755,7 @@ module.exports = {
   findAll,
   findById,
   approve,
+  approveAll,
   reject,
   findAuditTrail,
   getDashboardSummary,
