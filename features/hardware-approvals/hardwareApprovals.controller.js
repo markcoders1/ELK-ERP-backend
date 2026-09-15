@@ -55,13 +55,15 @@ const approve = asyncHandler(async (req, res) => {
 });
 
 const approveAll = asyncHandler(async (req, res) => {
-  const summary = await hardwareApprovalsService.approveAll(req.user);
+  const summary = await hardwareApprovalsService.approveAll(req.user, {
+    ids: req.body?.ids,
+  });
 
   return sendResponse(res, {
     message:
       summary.total === 0
         ? 'No pending change requests to approve'
-        : `Approved ${summary.approved} of ${summary.total} pending change request(s)`,
+        : `Approved ${summary.approved} of ${summary.total} selected change request(s)`,
     data: { summary },
     statusCode: HTTP_STATUS.OK,
   });
