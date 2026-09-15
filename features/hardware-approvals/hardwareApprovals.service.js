@@ -472,26 +472,30 @@ const approve = async (id, user) => {
 };
 
 /**
- * Approve every PENDING change request by calling the same `approve()` path
+ * Approve selected PENDING change requests by calling the same `approve()` path
  * sequentially (catalogue write + cascade + audit + notify per item).
+ * Only the provided ids are processed; others stay pending.
  */
-const approveAll = async (user) => {
-  const pending = await ChangeRequest.find({
-    status: CHANGE_REQUEST_STATUS.PENDING,
-  })
-    .sort({ submittedAt: 1 })
-    .select('_id stockCode componentCode entityType')
-    .lean();
+const approveAll = async (user, { ids } = {}) => {
+  const idList = Array.isArray(ids)
+    ? [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))]
+    : [];
+
+  if (idList.length === 0) {
+    throw new AppError(
+      'Select at least one pending change request to approve',
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
 
   const summary = {
-    total: pending.length,
+    total: idList.length,
     approved: 0,
     failed: 0,
     errors: [],
   };
 
-  for (const row of pending) {
-    const id = row._id.toString();
+  for (const id of idList) {
     try {
       await approve(id, user);
       summary.approved += 1;
@@ -499,8 +503,8 @@ const approveAll = async (user) => {
       summary.failed += 1;
       summary.errors.push({
         id,
-        stockCode: row.stockCode || row.componentCode || null,
-        entityType: row.entityType || null,
+        stockCode: null,
+        entityType: null,
         message: error.message || 'Approve failed',
       });
     }
