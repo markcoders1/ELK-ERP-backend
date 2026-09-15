@@ -52,6 +52,13 @@ const notificationIdRules = [
   param('id').isMongoId().withMessage('Invalid notification id'),
 ];
 
+const approveAllRules = [
+  body('ids')
+    .isArray({ min: 1 })
+    .withMessage('Select at least one pending change request to approve'),
+  body('ids.*').isMongoId().withMessage('Invalid change request id'),
+];
+
 /** Reuse Hardware create validation for submit-create. */
 const submitCreateRules = hardwareCreateRules;
 
@@ -64,6 +71,7 @@ module.exports = {
   listQueryRules,
   auditQueryRules,
   notificationIdRules,
+  approveAllRules,
   submitCreateRules,
   submitUpdateRules,
 };

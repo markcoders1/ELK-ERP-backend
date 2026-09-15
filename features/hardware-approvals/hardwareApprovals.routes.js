@@ -13,6 +13,7 @@ const {
   listQueryRules,
   auditQueryRules,
   notificationIdRules,
+  approveAllRules,
 } = require('./hardwareApprovals.validator');
 
 const router = express.Router();
@@ -50,6 +51,7 @@ router.get(
 router.post(
   '/approve-all',
   authorizeRoles(...APPROVAL_REVIEW_ROLES),
+  validate(approveAllRules),
   hardwareApprovalsController.approveAll
 );
 
