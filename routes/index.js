@@ -15,6 +15,7 @@ const asciiQuoteRoutes = require('../features/ascii-quote/asciiQuote.routes');
 const winnerConnectorRoutes = require('../features/winner-connector/winnerConnector.routes');
 const winnerImportsRoutes = require('../features/winner-connector/winnerImports.routes');
 const winnerConnectorsAdminRoutes = require('../features/winner-connector/winnerConnectors.admin.routes');
+const dqsSyncRoutes = require('../features/dqs-sync/dqsSync.routes');
 
 const router = express.Router();
 
@@ -43,5 +44,6 @@ router.use('/ascii-quote', asciiQuoteRoutes);
 router.use('/integrations/winner', winnerConnectorRoutes);
 router.use('/winner-imports', winnerImportsRoutes);
 router.use('/winner-connectors', winnerConnectorsAdminRoutes);
+router.use('/dqs-sync', dqsSyncRoutes);
 
 module.exports = router;

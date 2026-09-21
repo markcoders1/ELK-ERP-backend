@@ -15,6 +15,7 @@
     "seed:easylife-items": "node scripts/seedEasylifeItems.js",
     "seed:connector": "node scripts/seedConnector.js",
     "cascade:repair": "node scripts/repairHardwareCascade.js",
+    "dqs:snapshot": "node scripts/pushDqsSnapshot.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

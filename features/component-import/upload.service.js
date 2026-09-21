@@ -18,6 +18,7 @@ const {
   IMPORT_APPLY_MODE,
   COMPONENT_VERSION_STATUS,
   IMPORT_MAX_FILE_BYTES,
+  DQS_SYNC_REASONS,
 } = require('../../config/constants');
 const {
   assertAllowedWorkbook,
@@ -26,6 +27,7 @@ const {
 } = require('../hardware-import/excel.parser');
 const { buildHeaderLookup, normalizeComponentRow } = require('./normalizer');
 const { validateComponentRow, buildComponentCodeCounts } = require('./validator');
+const dqsSyncService = require('../dqs-sync/dqsSync.service');
 
 const USER_SELECT = 'name email role';
 
@@ -294,6 +296,7 @@ const confirmImport = async (batchId, _options = {}, user) => {
   let imported = 0;
   let skipped = 0;
   let failed = 0;
+  const importedCodes = [];
 
   const rows = await ImportPreviewRow.find({
     batchId: batch._id,
@@ -322,6 +325,7 @@ const confirmImport = async (batchId, _options = {}, user) => {
         });
 
         imported += 1;
+        if (code) importedCodes.push(code);
         await row.save();
 
         await writeImportAudit({
@@ -372,6 +376,14 @@ const confirmImport = async (batchId, _options = {}, user) => {
     actorId: user.id,
     batch,
   });
+
+  // Live VARIANT prices are already written — push to DQS without blocking import.
+  if (importedCodes.length > 0) {
+    dqsSyncService.enqueueDelta({
+      productCodes: importedCodes,
+      reason: DQS_SYNC_REASONS.COMPONENT_FINISH,
+    });
+  }
 
   const populated = await ImportBatch.findById(batch._id)
     .populate('uploadedBy', USER_SELECT)

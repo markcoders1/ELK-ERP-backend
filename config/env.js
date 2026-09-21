@@ -40,6 +40,18 @@ const env = {
     Number(process.env.HARDWARE_EXCEL_SYNC_MAX_ROWS) || EXCEL_SYNC_DEFAULT_MAX_ROWS,
   /** Extra CORS origins (comma-separated) for Office Scripts / tunnels */
   excelSyncCorsOrigins: parseCsvList(process.env.HARDWARE_EXCEL_SYNC_CORS_ORIGINS),
+
+  /**
+   * DQS (Dynamic Quoting System) — outbound catalogue finish-price sync.
+   * DQS_SYNC_URL should be the full POST URL, e.g.
+   *   http://localhost:3008/integrations/elk/carcass-base-prices
+   * (no /api prefix — IIS strips it in production).
+   */
+  dqsSyncUrl: process.env.DQS_SYNC_URL || '',
+  dqsSyncToken: process.env.DQS_SYNC_TOKEN || '',
+  dqsSyncTimeoutMs: Number(process.env.DQS_SYNC_TIMEOUT_MS) || 30000,
+  dqsSyncMaxSkusPerPost: Number(process.env.DQS_SYNC_MAX_SKUS_PER_POST) || 500,
+  dqsSyncMaxRetries: Number(process.env.DQS_SYNC_MAX_RETRIES) || 3,
 };
 
 if (!env.jwtSecret) {
