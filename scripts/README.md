@@ -217,6 +217,23 @@ Defaults point at the Downloads copies already used for analysis.
 
 ---
 
+## DQS catalogue snapshot
+
+Pushes the full live Carcasses & BIC VARIANT finish-price matrix to DQS (`mode: snapshot`).
+
+Requires `DQS_SYNC_URL` and `DQS_SYNC_TOKEN` in `.env`.
+
+```bash
+npm run dqs:snapshot
+# or
+node scripts/pushDqsSnapshot.js
+node scripts/pushDqsSnapshot.js --replay
+```
+
+Use once for first cutover / after DQS downtime. Day-to-day updates use deltas from approve / import.
+
+---
+
 ## Notes
 
 - Passwords are hashed with bcrypt (12 rounds), same as the auth service.

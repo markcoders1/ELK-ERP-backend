@@ -4,6 +4,7 @@ const {
   HTTP_STATUS,
   HARDWARE_SORT_FIELDS,
   PRICING_BASIS,
+  DQS_SYNC_REASONS,
 } = require('../../config/constants');
 const { parsePagination, buildPaginationMeta } = require('../../shared/pagination');
 const { escapeRegex } = require('../../shared/escapeRegex');
@@ -15,7 +16,18 @@ const {
   propagateHardwareChange,
   propagateHardwareChanges,
 } = require('../cascade/cascade.service');
+const dqsSyncService = require('../dqs-sync/dqsSync.service');
 const hardwareItemRangeService = require('../hardware-item-range/hardwareItemRange.service');
+
+const collectProductsTouched = (cascadeResult) => {
+  const codes = [];
+  (cascadeResult?.results || []).forEach((row) => {
+    (row.productsTouched || []).forEach((code) => {
+      if (code) codes.push(code);
+    });
+  });
+  return [...new Set(codes)];
+};
 
 const normalizeStockCode = (stockCode) => stockCode.trim().toUpperCase();
 const normalizeGroupCode = (groupCode) => groupCode.trim().toUpperCase();
@@ -381,7 +393,12 @@ const createManyFromImport = async (payloads, { userId, importBatchId, importedA
 
   const stockCodes = inserted.map((doc) => doc.stockCode).filter(Boolean);
   if (stockCodes.length > 0) {
-    await propagateHardwareChanges(stockCodes);
+    const cascadeResult = await propagateHardwareChanges(stockCodes);
+    // Import never hits sync.service.trigger — enqueue DQS after live cascade.
+    dqsSyncService.enqueueDelta({
+      productCodes: collectProductsTouched(cascadeResult),
+      reason: DQS_SYNC_REASONS.HARDWARE_IMPORT,
+    });
   }
 
   return inserted;
@@ -429,7 +446,11 @@ const updateManyFromImport = async (payloads, { userId, importBatchId, importedA
   }
 
   if (stockCodes.length > 0) {
-    await propagateHardwareChanges(stockCodes);
+    const cascadeResult = await propagateHardwareChanges(stockCodes);
+    dqsSyncService.enqueueDelta({
+      productCodes: collectProductsTouched(cascadeResult),
+      reason: DQS_SYNC_REASONS.HARDWARE_IMPORT,
+    });
   }
 
   return { updated, stockCodes };

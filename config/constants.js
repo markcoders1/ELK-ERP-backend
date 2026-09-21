@@ -204,7 +204,22 @@ const SYNC_STATUS = {
   NO_INTEGRATION: 'No Integration',
   PENDING: 'Pending',
   READY: 'Ready',
+  /** Real downstream adapter succeeded (e.g. DQS). */
+  SYNCED: 'Synced',
+  /** Real downstream adapter failed after retries / auth abort. */
+  FAILED: 'Failed',
 };
+
+/** Allowed reason values for DQS carcass-base-price POSTs. */
+const DQS_SYNC_REASONS = {
+  HARDWARE_CASCADE: 'hardware-cascade',
+  HARDWARE_IMPORT: 'hardware-import',
+  COMPONENT_FINISH: 'component-finish',
+  SNAPSHOT: 'snapshot',
+  REPLAY: 'replay',
+};
+
+const ALL_DQS_SYNC_REASONS = Object.values(DQS_SYNC_REASONS);
 
 const ALL_SYNC_STATUSES = Object.values(SYNC_STATUS);
 
@@ -363,6 +378,8 @@ module.exports = {
   ALL_CHANGE_REQUEST_STATUSES,
   SYNC_STATUS,
   ALL_SYNC_STATUSES,
+  DQS_SYNC_REASONS,
+  ALL_DQS_SYNC_REASONS,
   AUDIT_DECISIONS,
   ALL_AUDIT_DECISIONS,
   NOTIFICATION_TYPES,
